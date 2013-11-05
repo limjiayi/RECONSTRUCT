@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from matplotlib import pyplot as plt
-import draw
+import draw, delaunay
 
 def load_images(filename1, filename2):
 	'''Reads 2 images and converts them to grayscale if they are found.'''
@@ -19,7 +19,7 @@ def load_images(filename1, filename2):
 
 def find_keypoints_descriptors(img1, img2):
 	'''Detects keypoints and computes their descriptors.'''
-	# Initiate detector
+	# initiate detector
 	detector = cv2.SIFT()
 
 	# find the keypoints and descriptors
@@ -55,25 +55,76 @@ def match_keypoints(kp1, des1, kp2, des2):
 
 	return src_pts, dst_pts
 
-def perspective_transform(src_pts, dst_pts):
-	'''Finds a perspective transformation between 2 planes and applies it to one image to find
-	the corresponding points in the other image.'''
-	# find M, the perspective transformation of img1 to img2
-	# mask specifies the inlier and outlier points
-	M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC,2.0)
-	matchesMask = mask.ravel().tolist()
+def find_fundamental_matrix(src_pts, dst_pts):
+	F, mask = cv2.findFundamentalMat(src_pts, dst_pts, cv2.RANSAC)
 
-	h,w = img1.shape
-	src = np.float32([ [0,0],[0,h-1],[w-1,h-1],[w-1,0] ]).reshape(-1,1,2)
-	
-	# apply perspective transformation to obtain corresponding points
-	dst = cv2.perspectiveTransform(src,M)
+	return F, mask
+
+def find_camera_matrices(src_pts, dst_pts, F):
+	'''Compute the second camera matrix (assuming the first camera matrix = [I 0]).'''
+	# compute the right epipole from the fundamental matrix
+	U1, S1, V1 = cv2.SVDecomp(F)
+	right_epipole = V1[-1] / V1[-1, -1]
+
+	# compute the left epipole from the transpose of the fundamental matrix
+	U2, S2, V2 = cv2.SVDecomp(F.T) 
+	left_epipole = V2[-1] / V2[-1, -1]
+
+	# the first camera matrix is assumed to be the 3*3 identity matrix
+	P1 = np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]])
+
+	# find the 2nd camera matrix (returns a list of 4 possible solutions)
+	skew_matrix = np.array([[0, -left_epipole[2], left_epipole[1]], [left_epipole[2], 0, -left_epipole[0]], [-left_epipole[1], left_epipole[0], 0]])
+	P2 = np.vstack((np.dot(skew_matrix, F.T).T, left_epipole)).T
+
+	return P1, P2
+
+def refine_points(src_pts, dst_pts, F, mask):
+	# select only inlier points
+	img1_pts = src_pts[mask.ravel()==1]
+	img2_pts = dst_pts[mask.ravel()==1]
+
+	# convert to 1xNx2 arrays for cv2.correctMatches
+	img1_pts = np.array([ [pt[0] for pt in img1_pts for pt[0] in pt] ])
+	img2_pts = np.array([ [pt[0] for pt in img2_pts for pt[0] in pt] ])
+
+	img1_pts, img2_pts = cv2.correctMatches(F, img1_pts, img2_pts)
+
+	return img1_pts, img2_pts
+
+def triangulate_points(P1, P2, img1_pts, img2_pts):
+	# returns 4xN array of reconstructed points in homogeneous coordinates
+	pts_4D = cv2.triangulatePoints(P1, P2, img1_pts, img2_pts)
+
+	# get 3D points by dividing by the last coordinate
+	pts_3D = pts_4D / pts_4D[3]
+
+	return pts_3D
+
+def perspective_transform(src_pts, dst_pts):
+        '''Finds a perspective transformation between 2 planes and applies it to one image to find
+        the corresponding points in the other image.'''
+        # find M, the perspective transformation of img1 to img2
+        # mask specifies the inlier and outlier points
+        M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC,2.0)
+        matchesMask = mask.ravel().tolist()
+
+        h,w = img1.shape
+        src = np.float32([ [0,0],[0,h-1],[w-1,h-1],[w-1,0] ]).reshape(-1,1,2)
+        
+        # apply perspective transformation to obtain corresponding points
+        dst = cv2.perspectiveTransform(src,M)
 
 def main():
 	img1, img2 = load_images('Model_House/house.000.pgm', 'Model_House/house.001.pgm')
 	kp1, des1, kp2, des2 = find_keypoints_descriptors(img1, img2)
 	src_pts, dst_pts = match_keypoints(kp1, des1, kp2, des2)
+	F, mask = find_fundamental_matrix(src_pts, dst_pts)
+	P1, P2 = find_camera_matrices(src_pts, dst_pts, F)
+	img1_pts, img2_pts = refine_points(src_pts, dst_pts, F, mask)
+	pts_3D = triangulate_points(P1, P2, img1_pts, img2_pts)
+	print pts_3D[:2]
 	# draw.draw_matches(src_pts, dst_pts, img1, img2)
-	draw.draw_epilines(src_pts, dst_pts, img1, img2)
+	# draw.draw_epilines(src_pts, dst_pts, img1, img2)
 
 main()
