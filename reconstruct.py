@@ -1,7 +1,7 @@
-import cv2
+# import cv2
 import numpy as np
-from matplotlib import pyplot as plt
-import draw, delaunay
+# from scipy.spatial import Delaunay
+# import draw
 
 def load_images(filename1, filename2):
 	'''Reads 2 images and converts them to grayscale if they are found.'''
@@ -60,26 +60,34 @@ def find_fundamental_matrix(src_pts, dst_pts):
 
 	return F, mask
 
-def find_camera_matrices(src_pts, dst_pts, F):
+def find_projection_matrices(F):
 	'''Compute the second camera matrix (assuming the first camera matrix = [I 0]).'''
 	# compute the right epipole from the fundamental matrix
 	U1, S1, V1 = cv2.SVDecomp(F)
-	right_epipole = V1[-1] / V1[-1, -1]
+	right_epipole = V1[-1] / V1[-1, 2]
 
 	# compute the left epipole from the transpose of the fundamental matrix
 	U2, S2, V2 = cv2.SVDecomp(F.T) 
-	left_epipole = V2[-1] / V2[-1, -1]
+	left_epipole = V2[-1] / V2[-1, 2]
 
-	# the first camera matrix is assumed to be the 3*3 identity matrix
-	P1 = np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]])
+	# the first camera matrix is assumed to be the identity matrix
+	P1 = np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)
 
-	# find the 2nd camera matrix (returns a list of 4 possible solutions)
+	# find the 2nd camera matrix
 	skew_matrix = np.array([[0, -left_epipole[2], left_epipole[1]], [left_epipole[2], 0, -left_epipole[0]], [-left_epipole[1], left_epipole[0], 0]])
 	P2 = np.vstack((np.dot(skew_matrix, F.T).T, left_epipole)).T
 
 	return P1, P2
 
+def get_camera_matrix(projMatrix):
+	'''Decompose the projection matrix of a camera to the camera matrix (K), rotation matrix (R) 
+	and translation vector t'''
+	K, R, t = cv2.decomposeProjectionMatrix(projMatrix)[:3]
+
+	return K, R, t
+
 def refine_points(src_pts, dst_pts, F, mask):
+	'''Refine the coordinates of the corresponding points using the Optimal Triangulation Method.'''
 	# select only inlier points
 	img1_pts = src_pts[mask.ravel()==1]
 	img2_pts = dst_pts[mask.ravel()==1]
@@ -93,38 +101,96 @@ def refine_points(src_pts, dst_pts, F, mask):
 	return img1_pts, img2_pts
 
 def triangulate_points(P1, P2, img1_pts, img2_pts):
+	'''Reconstructs 3D points by triangulation using Direct Linear Transformation.'''
 	# returns 4xN array of reconstructed points in homogeneous coordinates
 	pts_4D = cv2.triangulatePoints(P1, P2, img1_pts, img2_pts)
 
 	# get 3D points by dividing by the last coordinate
 	pts_3D = pts_4D / pts_4D[3]
+	pts_3D = pts_3D[:3]
+	pts_3D = np.array(list(zip(pts_3D[0], pts_3D[1], pts_3D[2])))
 
 	return pts_3D
 
-def perspective_transform(src_pts, dst_pts):
-        '''Finds a perspective transformation between 2 planes and applies it to one image to find
-        the corresponding points in the other image.'''
-        # find M, the perspective transformation of img1 to img2
-        # mask specifies the inlier and outlier points
-        M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC,2.0)
-        matchesMask = mask.ravel().tolist()
+def delaunay(pts_3D):
+	'''Delaunay triangulation of 3D points.'''
+	tri = Delaunay(pts_3D)
 
-        h,w = img1.shape
-        src = np.float32([ [0,0],[0,h-1],[w-1,h-1],[w-1,0] ]).reshape(-1,1,2)
-        
-        # apply perspective transformation to obtain corresponding points
-        dst = cv2.perspectiveTransform(src,M)
+	edges = set()
+
+	def add_edge(i, j):
+		if (i, j)  in edges or (j, i) in edges:
+			# already added
+			return
+		edges.add( (i,j) )
+
+	for i in xrange(tri.nsimplex): 
+	       add_edge(tri.vertices[i,0], tri.vertices[i,1])
+	       add_edge(tri.vertices[i,0], tri.vertices[i,2]) 
+	       add_edge(tri.vertices[i,0], tri.vertices[i,3])
+	       add_edge(tri.vertices[i,1], tri.vertices[i,2]) 
+	       add_edge(tri.vertices[i,1], tri.vertices[i,3])
+	       add_edge(tri.vertices[i,2], tri.vertices[i,3])
+
+
+def project_points(pts_3D, rotationMatrix, translationVector, cameraMatrix):
+	rotationVector = cv2.Rodrigues(rotationMatrix)[0]
+	print "3D pts shape: ", pts_3D.shape
+	print "rvec: ", rotationVector
+	print "tvec: ", translationVector
+	print "camera matrix: ", cameraMatrix
+	img_pts, jacobian = cv2.projectPoints(pts_3D ,rotationVector, translationVector, cameraMatrix, None)
+
+	return img_pts
+
+def perspective_transform(src_pts, dst_pts):
+    '''Finds a perspective transformation between 2 planes and applies it to one image to find
+    the corresponding points in the other image.'''
+    # find M, the perspective transformation of img1 to img2
+    # mask specifies the inlier and outlier points
+    M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC,2.0)
+    matchesMask = mask.ravel().tolist()
+
+    h,w = img1.shape
+    src = np.float32([ [0,0],[0,h-1],[w-1,h-1],[w-1,0] ]).reshape(-1,1,2)
+    
+    # apply perspective transformation to obtain corresponding points
+    dst = cv2.perspectiveTransform(src,M)
 
 def main():
-	img1, img2 = load_images('Model_House/house.000.pgm', 'Model_House/house.001.pgm')
-	kp1, des1, kp2, des2 = find_keypoints_descriptors(img1, img2)
-	src_pts, dst_pts = match_keypoints(kp1, des1, kp2, des2)
-	F, mask = find_fundamental_matrix(src_pts, dst_pts)
-	P1, P2 = find_camera_matrices(src_pts, dst_pts, F)
-	img1_pts, img2_pts = refine_points(src_pts, dst_pts, F, mask)
-	pts_3D = triangulate_points(P1, P2, img1_pts, img2_pts)
-	print pts_3D[:2]
+	# img1, img2 = load_images('Model_House/house.000.pgm', 'Model_House/house.001.pgm')
+	# img1, img2 = load_images('Merton1/001.jpg', 'Merton1/002.jpg')
+	# kp1, des1, kp2, des2 = find_keypoints_descriptors(img1, img2)
+	# src_pts, dst_pts = match_keypoints(kp1, des1, kp2, des2)
+
+	# F, mask = find_fundamental_matrix(src_pts, dst_pts)
+	# P1, P2 = find_projection_matrices(F)
+
+	P1_text = open('Merton1/2D/001.P', 'r').read().strip().split('\n')
+	P1 = np.array([ row.split() for row in P1_text ])
+	P2_text = open('Merton1/2D/002.P', 'r').read().strip().split('\n')
+	P2 = np.array([ row.split() for row in P2_text ])
+
+	# K1, R1, t1 = get_camera_matrix(P1)
+
+	# camera = draw.Camera(P1)
+	# K1a, R1a, t1a = camera.factor()
+
+	# K2, R2, t2 = get_camera_matrix(P2)
+
+	# img1_pts, img2_pts = refine_points(src_pts, dst_pts, F, mask)
+	# pts_3D = triangulate_points(P1, P2, img1_pts, img2_pts)
+
+	p3d_file = open('Merton1/3D/p3d', 'r')
+	pts_3D = np.array([ line.strip().split() for line in open('Merton1/3D/p3d', 'r')])
+
+	# delaunay(pts_3D)
+
+	# proj_img1_pts = project_points(pts_3D, R1, t1, K1)
+	# proj_img2_pts = project_points(pts_3D, R2, t2, K2)
+
 	# draw.draw_matches(src_pts, dst_pts, img1, img2)
 	# draw.draw_epilines(src_pts, dst_pts, img1, img2)
+	# draw.draw_projected_points(pts_3D)
 
 main()

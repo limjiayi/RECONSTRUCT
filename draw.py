@@ -1,6 +1,7 @@
-import cv2
+# import cv2
 import numpy as np
-from matplotlib import pyplot as plt
+# from matplotlib import pyplot as plt
+# from scipy import linalg
 
 def draw_matches(src_pts, dst_pts, img1, img2):
 	'''Places the 2 images side-by-side and draws lines between matching keypoints.'''
@@ -51,3 +52,60 @@ def draw_lines(img1, img2, lines, img1_pts, img2_pts):
 		cv2.circle(img2, tuple(pt2[0]), 5, color, -1)
 
 	return img1, img2
+
+class Camera(object):
+	'''Class for representing pin-hole cameras.'''
+
+	def __init__(self, P):
+		'''Initialize P = K[R|t] camera model.'''
+		self.P = P
+		self.K = None # calibration matrix
+		self.R = None # rotation
+		self.t = None # translation
+		self.c = None # camera center
+
+	def project(self, X):
+		x = np.dot(self.P, X)
+		for i in range(3):
+			x[i] /= x[2]
+		return x
+
+	def factor(self):
+		'''Factorize the camera matrix into K, R, t as P = K[R|t].'''
+		# factor the first 3*3 part
+		K, R = linalg.rq(self.P[:,:3])
+		# make diagonal of K positive
+		T = diag(sign(diag(K)))
+		if linalg.det(T) < 0:
+			T[1,1] *= -1
+
+		self.K = np.dot(K,T)
+		self.R = np.dot(T,R) # T is its own inverse
+		self.t = np.dot(linalg.inv(self.K), self.P[:,3])
+
+		return self.K, self.R, self.t
+
+	def center(self):
+		'''Compute and return the camera center.'''
+		if self.c is not None:
+			return self.c
+		else:
+			# compute c by factoring
+			self.factor()
+			self.c = -dot(self.R.T, self.t)
+			return self.c
+
+def draw_projected_points(pts_3D):
+	# load points
+	points = pts_3D.T
+	points = np.vstack((points, np.ones(points.shape[1])))
+
+	# setup camera
+	P = np.hstack((np.eye(3), np.array([[0], [0], [-10]])))
+	camera = Camera(P)
+	proj_pts = camera.project(points)
+
+	# plot projection
+	plt.figure()
+	plt.plot(proj_pts[0], proj_pts[1], 'k')
+	plt.show()
