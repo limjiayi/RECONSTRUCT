@@ -1,7 +1,7 @@
-# import cv2
+import cv2
 import numpy as np
-# from scipy.spatial import Delaunay
-# import draw
+from scipy.spatial import Delaunay
+import draw
 
 def load_images(filename1, filename2):
 	'''Reads 2 images and converts them to grayscale if they are found.'''
@@ -158,31 +158,43 @@ def perspective_transform(src_pts, dst_pts):
     dst = cv2.perspectiveTransform(src,M)
 
 def main():
-	# img1, img2 = load_images('Model_House/house.000.pgm', 'Model_House/house.001.pgm')
-	# img1, img2 = load_images('Merton1/001.jpg', 'Merton1/002.jpg')
-	# kp1, des1, kp2, des2 = find_keypoints_descriptors(img1, img2)
-	# src_pts, dst_pts = match_keypoints(kp1, des1, kp2, des2)
+	img1, img2 = load_images('Model_House/house.000.pgm', 'Model_House/house.001.pgm')
+	img1, img2 = load_images('Merton1/001.jpg', 'Merton1/002.jpg')
+	kp1, des1, kp2, des2 = find_keypoints_descriptors(img1, img2)
+	src_pts, dst_pts = match_keypoints(kp1, des1, kp2, des2)
+
+	print src_pts.shape
 
 	# F, mask = find_fundamental_matrix(src_pts, dst_pts)
+	F = draw.compute_fundamental(src_pts, dst_pts)
+
 	# P1, P2 = find_projection_matrices(F)
+	# print P2
 
-	P1_text = open('Merton1/2D/001.P', 'r').read().strip().split('\n')
-	P1 = np.array([ row.split() for row in P1_text ])
-	P2_text = open('Merton1/2D/002.P', 'r').read().strip().split('\n')
-	P2 = np.array([ row.split() for row in P2_text ])
-
-	# K1, R1, t1 = get_camera_matrix(P1)
-
-	# camera = draw.Camera(P1)
-	# K1a, R1a, t1a = camera.factor()
+	# check if get_camera_matrix works
+	# P1_text = open('Merton1/2D/001.P', 'r').read().strip().split('\n')
+	# P1 = np.array([ row.split() for row in P1_text ], dtype=float)
+	# P2_text = open('Merton1/2D/002.P', 'r').read().strip().split('\n')
+	# P2 = np.array([ row.split() for row in P2_text ], dtype=float)
+	# print P2
 
 	# K2, R2, t2 = get_camera_matrix(P2)
+	# print "K2: ", K2
+	# print "R2: ", R2
+	# print "t2: ", t2
+	# camera = draw.Camera(P2)
+	# K2, R2, t2 = camera.factor()
+	# print "K2: ", K2
+	# print "R2: ", R2
+	# print "t2: ", t2
 
 	# img1_pts, img2_pts = refine_points(src_pts, dst_pts, F, mask)
 	# pts_3D = triangulate_points(P1, P2, img1_pts, img2_pts)
 
-	p3d_file = open('Merton1/3D/p3d', 'r')
-	pts_3D = np.array([ line.strip().split() for line in open('Merton1/3D/p3d', 'r')])
+	# check if draw_projected_points works
+	# p3d_file = open('Merton1/3D/p3d', 'r')
+	# pts_3D = np.array([ line.strip().split() for line in open('Merton1/3D/p3d', 'r')])
+	# draw.draw_projected_points(pts_3D)
 
 	# delaunay(pts_3D)
 

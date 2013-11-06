@@ -1,7 +1,7 @@
-# import cv2
+import cv2
 import numpy as np
-# from matplotlib import pyplot as plt
-# from scipy import linalg
+from matplotlib import pyplot as plt
+from scipy import linalg
 
 def draw_matches(src_pts, dst_pts, img1, img2):
 	'''Places the 2 images side-by-side and draws lines between matching keypoints.'''
@@ -75,7 +75,7 @@ class Camera(object):
 		# factor the first 3*3 part
 		K, R = linalg.rq(self.P[:,:3])
 		# make diagonal of K positive
-		T = diag(sign(diag(K)))
+		T = np.diag(np.sign(np.diag(K)))
 		if linalg.det(T) < 0:
 			T[1,1] *= -1
 
@@ -109,3 +109,26 @@ def draw_projected_points(pts_3D):
 	plt.figure()
 	plt.plot(proj_pts[0], proj_pts[1], 'k')
 	plt.show()
+
+def compute_fundamental(x1,x2):
+	'''Computes the fundamental matrix from corresponding points
+	(x1,x2 3*n arrays) using the normalized 8 point algorithm.
+	each row is constructed as [x'*x, x'*y, x', y'*x, y'*y, y', x, y, 1]'''
+	n = x1.shape[1]
+	if x2.shape[1] != n:
+		raise ValueError('Number of points don\'t match.')
+	# build matrix for equations
+	A = np.zeros((n,9))
+	for i in range(n):
+		A[i] = [x1[0,i]*x2[0,i], x1[0,i]*x2[1,i], x1[0,i]*x2[2,i],
+				x1[1,i]*x2[0,i], x1[1,i]*x2[1,i], x1[1,i]*x2[2,i],
+				x1[2,i]*x2[0,i], x1[2,i]*x2[1,i], x1[2,i]*x2[2,i] ]
+	# compute linear least square solution
+	U,S,V = linalg.svd(A)
+	F = V[-1].reshape(3,3)
+	# constrain F
+	# make rank 2 by zeroing out last singular value
+	U,S,V = linalg.svd(F)
+	S[2] = 0
+	F = dot(U,np.dot(np.diag(S),V))
+	return F
