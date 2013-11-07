@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 from matplotlib import pyplot as plt
+from pylab import *
 from scipy import linalg
 
 def draw_matches(src_pts, dst_pts, img1, img2):
@@ -19,10 +20,7 @@ def draw_matches(src_pts, dst_pts, img1, img2):
 
 	plt.imshow(img_matches,), plt.show()
 
-def draw_epilines(src_pts, dst_pts, img1, img2):
-	# find the fundamental matrix
-	F, mask = cv2.findFundamentalMat(src_pts, dst_pts, cv2.RANSAC)
-
+def draw_epilines(src_pts, dst_pts, img1, img2, F, mask):
 	# select only inlier points
 	img1_pts = src_pts[mask.ravel()==1]
 	img2_pts = dst_pts[mask.ravel()==1]
@@ -54,10 +52,10 @@ def draw_lines(img1, img2, lines, img1_pts, img2_pts):
 	return img1, img2
 
 class Camera(object):
-	'''Class for representing pin-hole cameras.'''
+	"""Class for representing pin-hole cameras."""
 
 	def __init__(self, P):
-		'''Initialize P = K[R|t] camera model.'''
+		"""Initialize P = K[R|t] camera model."""
 		self.P = P
 		self.K = None # calibration matrix
 		self.R = None # rotation
@@ -65,28 +63,39 @@ class Camera(object):
 		self.c = None # camera center
 
 	def project(self, X):
-		x = np.dot(self.P, X)
+		"""Project points in X (4*n array) and normalize coordinates."""
+
+		x = dot(self.P, X)
 		for i in range(3):
 			x[i] /= x[2]
 		return x
 
+	def rotation_matrix(a):
+		"""Creates a 3D rotation matrix for rotation around the axis of the vector a."""
+		R = eye(4)
+		R[:3,:3] = linalg.expm([[0,-a[2],a[1]], [a[2],0,-a[0]], [-a[1],a[0],0]])
+		return R
+
 	def factor(self):
-		'''Factorize the camera matrix into K, R, t as P = K[R|t].'''
-		# factor the first 3*3 part
+		"""Factorize the camera matrix into K, R, t where P = K[R|t]."""
+
+		# factor first 3*3 part
 		K, R = linalg.rq(self.P[:,:3])
+
 		# make diagonal of K positive
-		T = np.diag(np.sign(np.diag(K)))
+		T = diag(sign(diag(K)))
 		if linalg.det(T) < 0:
 			T[1,1] *= -1
 
-		self.K = np.dot(K,T)
-		self.R = np.dot(T,R) # T is its own inverse
-		self.t = np.dot(linalg.inv(self.K), self.P[:,3])
+		self.K = dot(K,T)
+		self.R = dot(T,R) # T is its own inverse
+		self.t = dot(linalg.inv(self.K), self.P[:,3])
 
 		return self.K, self.R, self.t
 
 	def center(self):
-		'''Compute and return the camera center.'''
+		"""Compute and return the camera center."""
+
 		if self.c is not None:
 			return self.c
 		else:
@@ -95,19 +104,14 @@ class Camera(object):
 			self.c = -dot(self.R.T, self.t)
 			return self.c
 
-def draw_projected_points(pts_3D):
-	# load points
-	points = pts_3D.T
-	points = np.vstack((points, np.ones(points.shape[1])))
-
+def draw_projected_points(points, P):
 	# setup camera
-	P = np.hstack((np.eye(3), np.array([[0], [0], [-10]])))
 	camera = Camera(P)
 	proj_pts = camera.project(points)
 
 	# plot projection
 	plt.figure()
-	plt.plot(proj_pts[0], proj_pts[1], 'k')
+	plt.plot(proj_pts[0], proj_pts[1], 'k.')
 	plt.show()
 
 def compute_fundamental(x1,x2):
