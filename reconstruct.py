@@ -15,15 +15,6 @@ def load_images(filename1, filename2):
 	except:
 		print "Image not found!"
 
-	# cv2.imwrite('gray1.jpg', img1_gray)
-	# cv2.imwrite('gray2.jpg', img2_gray)
-
-	# img1_gray = cv2.imread('gray1.jpg')
-	# img2_gray = cv2.imread('gray2.jpg')
-
-	# img1_gray = cv2.cvtColor(img1_gray, cv2.COLOR_RGB2GRAY)
-	# img2_gray = cv2.cvtColor(img2_gray, cv2.COLOR_RGB2GRAY)
-
 	return img1_gray, img2_gray
 
 def find_keypoints_descriptors(img1, img2):
@@ -105,8 +96,6 @@ def refine_points(src_pts, dst_pts, F, mask):
 	img1_pts = np.array([ [pt[0] for pt in img1_pts for pt[0] in pt] ])
 	img2_pts = np.array([ [pt[0] for pt in img2_pts for pt[0] in pt] ])
 
-	print "img1p:", img1_pts.shape
-
 	img1_pts, img2_pts = cv2.correctMatches(F, img1_pts, img2_pts)
 
 	return img1_pts, img2_pts
@@ -114,6 +103,7 @@ def refine_points(src_pts, dst_pts, F, mask):
 def triangulate_points(P1, P2, img1_pts, img2_pts):
 	'''Reconstructs 3D points by triangulation using Direct Linear Transformation.'''
 	# convert to 2xN arrays
+
 	img1_pts = np.array([ row[0] for row in img1_pts ]).T
 	img2_pts = np.array([ row[0] for row in img2_pts ]).T
 
@@ -173,22 +163,21 @@ def delaunay(pts_3D):
 #     dst = cv2.perspectiveTransform(src,M)
 
 def main():
-	img1, img2 = load_images('data/alcatraz1.jpg', 'data/alcatraz2.jpg')
+	img1, img2 = load_images('Model_House/house.000.pgm', 'Model_House/house.001.pgm')
 	kp1, des1, kp2, des2 = find_keypoints_descriptors(img1, img2)
 	src_pts, dst_pts = match_keypoints(kp1, des1, kp2, des2)
 
 	F, mask = find_fundamental_matrix(src_pts, dst_pts)
-
 	P1, P2 = find_projection_matrices(F)
+	K1, R1, t1 = get_camera_matrix(P1)
 	K2, R2, t2 = get_camera_matrix(P2)
 
-	print src_pts.shape
-
-	# img1_pts, img2_pts = refine_points(src_pts, dst_pts, F, mask)
+	img1_pts, img2_pts = refine_points(src_pts, dst_pts, F, mask)
 	homog_3D, pts_3D = triangulate_points(P1, P2, src_pts, dst_pts)
+	# delaunay(pts_3D)
 
 	# draw.draw_matches(src_pts, dst_pts, img1, img2)
 	# draw.draw_epilines(src_pts, dst_pts, img1, img2, F, mask)
-	draw.draw_projected_points(homog_3D, P1)
+	draw.draw_projected_points(homog_3D, P2)
 
 main()
