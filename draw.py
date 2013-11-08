@@ -123,6 +123,7 @@ def display_pyglet(pts_3D, colours_for_pts):
 
 	points = tuple(pts_3D.flatten())
 	colours = tuple(colours_for_pts.flatten())
+	print colours[:3]
 	points_list = pyglet.graphics.vertex_list(num_pts, ('v3i', points), ('c3B', colours) )
 
 	window = pyglet.window.Window()
