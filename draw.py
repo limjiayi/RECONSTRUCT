@@ -104,35 +104,31 @@ class Camera(object):
 			self.c = -dot(self.R.T, self.t)
 			return self.c
 
-def draw_projected_points(points, P):
+def draw_projected_points(homog_3D, P):
 	# setup camera
 	camera = Camera(P)
-	proj_pts = camera.project(points)
+	proj_pts = camera.project(homog_3D)
 
 	# plot projection
 	plt.figure()
 	plt.plot(proj_pts[0], proj_pts[1], 'k.')
 	plt.show()
 
-def compute_fundamental(x1,x2):
-	'''Computes the fundamental matrix from corresponding points
-	(x1,x2 3*n arrays) using the normalized 8 point algorithm.
-	each row is constructed as [x'*x, x'*y, x', y'*x, y'*y, y', x, y, 1]'''
-	n = x1.shape[1]
-	if x2.shape[1] != n:
-		raise ValueError('Number of points don\'t match.')
-	# build matrix for equations
-	A = np.zeros((n,9))
-	for i in range(n):
-		A[i] = [x1[0,i]*x2[0,i], x1[0,i]*x2[1,i], x1[0,i]*x2[2,i],
-				x1[1,i]*x2[0,i], x1[1,i]*x2[1,i], x1[1,i]*x2[2,i],
-				x1[2,i]*x2[0,i], x1[2,i]*x2[1,i], x1[2,i]*x2[2,i] ]
-	# compute linear least square solution
-	U,S,V = linalg.svd(A)
-	F = V[-1].reshape(3,3)
-	# constrain F
-	# make rank 2 by zeroing out last singular value
-	U,S,V = linalg.svd(F)
-	S[2] = 0
-	F = dot(U,np.dot(np.diag(S),V))
-	return F
+import pyglet
+from pyglet.gl import *
+
+def display_pyglet(pts_3D, colours_for_pts):
+	'''Draw point cloud using Pyglet's wrapper for OpenGL.'''
+	num_pts = pts_3D.shape[0]
+
+	points = tuple(pts_3D.flatten())
+	colours = tuple(colours_for_pts.flatten())
+	points_list = pyglet.graphics.vertex_list(num_pts, ('v3i', points), ('c3B', colours) )
+
+	window = pyglet.window.Window()
+
+	@window.event
+	def on_draw():
+		points_list.draw(GL_POINTS)
+
+	pyglet.app.run()
