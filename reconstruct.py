@@ -1,3 +1,4 @@
+import os
 import cv2
 import numpy as np
 from scipy.spatial import Delaunay
@@ -45,7 +46,7 @@ def match_keypoints(kp1, des1, kp2, des2):
 	flann = cv2.FlannBasedMatcher(index_params,search_params)
 	matches = flann.knnMatch(np.asarray(des1, np.float32), np.asarray(des2, np.float32), k=2)
 
-	# store all the good matches as per Lowe's ratio test.
+	# store all the good matches as per Lowe's ratio test
 	good_matches = []
 	for m, n in matches:
 	    if m.distance < 0.7 * n.distance:
@@ -198,7 +199,53 @@ def main():
 
 	# draw.draw_matches(src_pts, dst_pts, img1, img2)
 	# draw.draw_epilines(src_pts, dst_pts, img1, img2, F, mask)
-	draw.draw_projected_points(homog_3D, P2)
+	draw.draw_projected_points(homog_3D, P1)
 	draw.display_pyglet(pts_3D, img1_colours)
 
 main()
+
+
+# loop through each pair of images, find point correspondences and generate 3D point cloud
+# multiply each point in each new point cloud by the cumulative matrix inverses to get the 3D point
+# as seen by camera 1, and append this point to the overall point cloud
+def main():
+	images = [ img for img in os.listdir('Dinosaur') if img.rpartition('.')[2] in ('jpg', 'png', 'pgm', 'ppm') ]
+	f_matrices = []
+	pt_cloud = []
+
+	for i in range(len(images)-1):
+		homog_3D, pts_3D, F = gen_pt_cloud(images[i], images[i+1])
+		f_matrices.append(F)
+
+		if i == 0:
+			F_inv = F
+			for pt in homog_3D:
+				pt_cloud.append(pt)
+
+		if i >= 1:
+			for i in reversed(range(len(f_matrices))):
+				F_inv = np.dot(F_inv, np.linalg.inv(f_matrices[i]))
+
+			for pt in homog_3D:
+				pt = np.dot(F_inv, pt)
+				pt_cloud.append(pt)
+
+	draw.draw_projected_points(pt_cloud, np.eye(3))
+
+
+def gen_pt_cloud(img1, img2):
+	img1, img2 = load_images('data/alcatraz1.jpg', 'data/alcatraz2.jpg')
+	img1_gray, img2_gray = gray_images(img1, img2)
+	kp1, des1, kp2, des2 = find_keypoints_descriptors(img1_gray, img2_gray)
+	src_pts, dst_pts = match_keypoints(kp1, des1, kp2, des2)
+
+	F, mask = find_fundamental_matrix(src_pts, dst_pts)
+	P1, P2 = find_projection_matrices(F)
+	K1, R1, t1 = get_camera_matrix(P1)
+	K2, R2, t2 = get_camera_matrix(P2)
+
+	img1_pts, img2_pts = refine_points(src_pts, dst_pts, F, mask)
+	img1_colours, img2_colours = get_colours(img1, img2, img1_pts, img2_pts)
+	homog_3D, pts_3D = triangulate_points(P1, P2, img1_pts, img2_pts)
+
+	return homog_3D, pts_3D, F
