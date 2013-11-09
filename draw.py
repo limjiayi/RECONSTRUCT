@@ -117,19 +117,91 @@ def draw_projected_points(homog_3D, P):
 import pyglet
 from pyglet.gl import *
 
+def opengl_init():
+	glEnable(GL_BLEND)
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+	glDepthFunc(GL_LEQUAL)
+
+
+class CameraWindow(pyglet.window.Window):
+	def __init__(self, points, colours):
+		super(CameraWindow, self).__init__(resizable=True)
+		opengl_init()
+		self.x = 0
+		self.y = 0
+		self.z = 0
+		self.rx = 0
+		self.ry = 0
+		self.rz = 0
+		self.fov = 45
+		self.far = 819
+		self.zoom = 1
+
+		self.points = points
+		self.colours = colours
+
+	def init_iso_camera(self):
+		glMatrixMode(GL_PROJECTION)
+		glLoadIdentity()
+		# glOrtho(-self.width/2, self.width/2, -self.height/2, self.height/2, 0, 8192)
+		gluPerspective(self.fov, float(self.width)/self.height, 0.1, self.far)
+		glMatrixMode(GL_MODELVIEW)
+
+
+	def on_mouse_drag(self, x, y, dx, dy, button, modifiers):		
+		if button == 1:
+			self.x -= dx*2
+			self.y += dy*2
+		if button == 2:
+			# self.x -= dx*2
+			# self.z -= dy*2
+			self.zoom += 1
+		if button == 3:
+			self.zoom -= 1
+		if button == 4:
+			self.ry += dx/40.
+			# self.rx -= dy/4.
+
+	def on_draw(self):
+		self.clear()
+		self.move_camera()
+		playground()
+		self.draw_points()
+
+	def move_camera(self):
+		glLoadIdentity()
+		glTranslatef(-self.x, self.y, self.z)
+		glRotatef(self.rx, 1, 0, 0)
+		glRotatef(self.ry, 0, 1, 0)
+		glRotatef(self.rz, 0, 0, 1)
+		glScalef(self.zoom, self.zoom, 1)
+
+	def draw_points(self):		
+		points = self.points
+		colours = self.colours
+		num_pts = points.shape[0]
+		points = tuple(points.flatten())
+		colours = tuple(colours.flatten())
+		points_list = pyglet.graphics.vertex_list(num_pts, ('v3f', points), ('c3B', colours) )
+		# glClear(GL_COLOR_BUFFER_BIT)
+		points_list.draw(GL_POINTS)
+
+def playground():
+    """ Draw something here, like a white X."""
+    glColor4f(1, 1, 1, 1)
+    glBegin(GL_LINES)
+    glVertex3f(0, 0, 0)
+    glVertex3f(640, 480, 0)
+
+    glVertex3f(0, 480, 0)
+    glVertex3f(640, 0, 0)
+    glEnd()
+
 def display_pyglet(pts_3D, colours_for_pts):
 	'''Draw point cloud using Pyglet's wrapper for OpenGL.'''
-	num_pts = pts_3D.shape[0]
-
-	points = tuple(pts_3D.flatten())
-	colours = tuple(colours_for_pts.flatten())
-	print colours[:3]
-	points_list = pyglet.graphics.vertex_list(num_pts, ('v3i', points), ('c3B', colours) )
-
-	window = pyglet.window.Window()
-
-	@window.event
-	def on_draw():
-		points_list.draw(GL_POINTS)
+	
+	# window = pyglet.window.Window()
+	window = CameraWindow(points=pts_3D, colours=colours_for_pts)
+	window.init_iso_camera()
 
 	pyglet.app.run()

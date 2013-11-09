@@ -1,0 +1,37 @@
+This CD contains 46 uncompressed TIFF-format files of photographs of
+the main keep at Raglan castle.
+
+Raglan castle keep is an unusual hexagonal structure in the French style.
+All of one face and half of two adjascent faces were destroyed by Oliver
+Cromwell, leaving the interior of the keep visible from the open side.  The
+keep stands on a hexagonal base surrounded by a water-filled moat.
+
+I tried to record every feature of the exterior of the keep, from moat
+to roof-line, plus most of the interior, in at least 3 images shot
+from diff views.  The lens focal length was freely changed between shots.
+Two rolls of film of different speeds were used and the camera (or operator!)
+unfortunately did not match the exposures of the 2 films as well as they
+might have been.
+
+The separated parts of each file name are intended to provide a
+(perhaps unnecessary) key to each shot:
+
+1) "moat", "lawn", "roof" - describes, in increasing height, the general level
+   and distance from the keep at which each group of shots was taken.
+2) a number indictes the very approximate (+-10 degrees) bearing from the centre
+   of the keep to the camera location.
+3) "tower" or "interior" indicates whether or not the shot was exterior
+4) the faces of the keep are numbered 1-6 in a clockwise (from above) order.
+   Face 1 is the first face clockwise from the drawbridge.  Face 2 is partly
+   destroyed.  Face 3 is completely destroyed.  Face 4 is partly destroyed.
+   Face 5 is intact, and face 6 has the main gateway and bridge.
+   "full", "upper", and "lower" and the face number(s) indicate the general
+   content of the shot.  An "L" or "R" suffix to the face number indicates
+   if only its left or right part is in view.
+5) where there are "stereo pairs" of almost exactly the same view, shot on a
+   short baseline, these are indicated "p" and "q"
+6) if the bridge was significantly in view, this is indicated.
+
+Good luck!
+
+Julian

@@ -71,11 +71,11 @@ def find_projection_matrices(F):
 	'''Compute the second camera matrix (assuming the first camera matrix = [I 0]).'''
 	# compute the right epipole from the fundamental matrix
 	U1, S1, V1 = cv2.SVDecomp(F)
-	right_epipole = V1[-1] / V1[-1, 2]
+	right_epipole = V1[2] / V1[2, 2]
 
 	# compute the left epipole from the transpose of the fundamental matrix
 	U2, S2, V2 = cv2.SVDecomp(F.T) 
-	left_epipole = V2[-1] / V2[-1, 2]
+	left_epipole = V2[2] / V2[2, 2]
 
 	# the first camera matrix is assumed to be the identity matrix
 	P1 = np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)
@@ -129,7 +129,6 @@ def triangulate_points(P1, P2, img1_pts, img2_pts):
 	# returns 4xN array of reconstructed points in homogeneous coordinates
 	homog_3D = cv2.triangulatePoints(P1, P2, img1_pts, img2_pts)
 
-	# make homogeneous by dividing by the last coordinate
 	# pts_3D is a Nx3 array where each N contains an x, y and z-coord
 	pts_3D = homog_3D / homog_3D[3]
 	pts_3D = pts_3D[:3]
@@ -182,61 +181,11 @@ def delaunay(pts_3D):
 #     # apply perspective transformation to obtain corresponding points
 #     dst = cv2.perspectiveTransform(src,M)
 
-def main():
-	img1, img2 = load_images('Dinosaur/viff.000.ppm', 'Dinosaur/viff.001.ppm')
-	img1_gray, img2_gray = gray_images(img1, img2)
-	kp1, des1, kp2, des2 = find_keypoints_descriptors(img1_gray, img2_gray)
-	src_pts, dst_pts = match_keypoints(kp1, des1, kp2, des2)
-
-	F, mask = find_fundamental_matrix(src_pts, dst_pts)
-	P1, P2 = find_projection_matrices(F)
-	K1, R1, t1 = get_camera_matrix(P1)
-	K2, R2, t2 = get_camera_matrix(P2)
-
-	img1_pts, img2_pts = refine_points(src_pts, dst_pts, F, mask)
-	img1_colours, img2_colours = get_colours(img1, img2, img1_pts, img2_pts)
-	homog_3D, pts_3D = triangulate_points(P1, P2, img1_pts, img2_pts)
-	print img1_pts[0][0]
-	print img1[133][281]
-	# delaunay(pts_3D)
-
-	# draw.draw_matches(src_pts, dst_pts, img1, img2)
-	# draw.draw_epilines(src_pts, dst_pts, img1, img2, F, mask)
-	# draw.draw_projected_points(homog_3D, P1)
-	draw.display_pyglet(pts_3D, img1_colours)
-
-main()
-
-
-# loop through each pair of images, find point correspondences and generate 3D point cloud
-# multiply each point in each new point cloud by the cumulative matrix inverses to get the 3D point
-# as seen by camera 1, and append this point to the overall point cloud
 # def main():
-# 	images = [ img for img in os.listdir('Dinosaur') if img.rpartition('.')[2] in ('jpg', 'png', 'pgm', 'ppm') ]
-# 	f_matrices = []
-# 	pt_cloud = []
+# 	# img1, img2 = load_images('Merton1/001.jpg', 'Merton1/002.jpg')
+# 	img1, img2 = load_images('Dinosaur/viff.010.ppm', 'Dinosaur/viff.011.ppm')
+# 	# img1, img2 = load_images('data/alcatraz1.jpg', 'data/alcatraz2.jpg')
 
-# 	for i in range(len(images)-1):
-# 		homog_3D, pts_3D, F = gen_pt_cloud(images[i], images[i+1])
-# 		f_matrices.append(F)
-
-# 		if i == 0:
-# 			F_inv = F
-# 			for pt in homog_3D:
-# 				pt_cloud.append(pt)
-
-# 		elif i >= 1:
-# 			F_inv = np.dot(linalg.inv(f_matrices[i]), F_inv)
-
-# 			for pt in homog_3D:
-# 				pt = np.dot(F_inv, pt)
-# 				pt_cloud.append(pt)
-
-# 	draw.draw_projected_points(pt_cloud, np.eye(3))
-
-
-# def gen_pt_cloud(img1, img2):
-# 	img1, img2 = load_images('data/alcatraz1.jpg', 'data/alcatraz2.jpg')
 # 	img1_gray, img2_gray = gray_images(img1, img2)
 # 	kp1, des1, kp2, des2 = find_keypoints_descriptors(img1_gray, img2_gray)
 # 	src_pts, dst_pts = match_keypoints(kp1, des1, kp2, des2)
@@ -249,5 +198,72 @@ main()
 # 	img1_pts, img2_pts = refine_points(src_pts, dst_pts, F, mask)
 # 	img1_colours, img2_colours = get_colours(img1, img2, img1_pts, img2_pts)
 # 	homog_3D, pts_3D = triangulate_points(P1, P2, img1_pts, img2_pts)
+# 	print 'no. of matched pts: ', img1_pts.shape
+# 	print 'coords of 1st img1 pt: ', img1_pts[0][0]
+# 	print 'acccessed rgb vals in img1: ', img1[133][281]
+# 	print 'rgb vals saved in img1_colors: ', img1_colours[0]
 
-# 	return homog_3D, pts_3D, F
+# 	delaunay(pts_3D)
+
+# 	draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
+# 	draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
+# 	draw.draw_projected_points(homog_3D, P2)
+# 	draw.display_pyglet(pts_3D, img1_colours)
+
+
+
+# loop through each pair of images, find point correspondences and generate 3D point cloud
+# multiply each point in each new point cloud by the cumulative matrix inverses to get the 3D point
+# as seen by camera 1, and append this point to the overall point cloud
+def main():
+	directory = 'Images/Model_House'
+	images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2] in ('jpg', 'png', 'pgm', 'ppm') ])
+	f_matrices = []
+
+	for i in range(len(images)-1):
+		homog_3D, pts_3D, F, img_colours = gen_pt_cloud(images[i], images[i+1])
+		f_matrices.append(F)
+
+		if i == 0:
+			F_inv = np.eye(3)
+			pt_cloud = list(pts_3D)
+			colours = list(img_colours)
+
+		elif i >= 1:
+			F_inv = np.dot(linalg.inv(f_matrices[i-1]), F_inv)
+
+			for pt in pts_3D:
+				pt = np.dot(F_inv, pt.T)
+				pt_cloud.append(pt.T)
+
+			for colour in img_colours:
+				colours.append(colour)
+
+
+	pt_cloud = np.array(pt_cloud)
+	homog_pt_cloud = np.vstack((pt_cloud.T, np.zeros(pt_cloud.shape[0])))
+	P1 = np.hstack((np.eye(3), np.zeros((3,1))))
+	colours = np.array(colours)
+
+	draw.draw_projected_points(homog_pt_cloud, P1)
+	draw.display_pyglet(pt_cloud, colours)
+
+
+def gen_pt_cloud(image1, image2):
+	img1, img2 = load_images(image1, image2)
+	img1_gray, img2_gray = gray_images(img1, img2)
+	kp1, des1, kp2, des2 = find_keypoints_descriptors(img1_gray, img2_gray)
+	src_pts, dst_pts = match_keypoints(kp1, des1, kp2, des2)
+
+	F, mask = find_fundamental_matrix(src_pts, dst_pts)
+	P1, P2 = find_projection_matrices(F)
+	# K1, R1, t1 = get_camera_matrix(P1)
+	# K2, R2, t2 = get_camera_matrix(P2)
+
+	img1_pts, img2_pts = refine_points(src_pts, dst_pts, F, mask)
+	img1_colours, img2_colours = get_colours(img1, img2, img1_pts, img2_pts)
+	homog_3D, pts_3D = triangulate_points(P1, P2, img1_pts, img2_pts)
+
+	return homog_3D, pts_3D, F, img1_colours
+
+main()
