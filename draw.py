@@ -115,6 +115,7 @@ def draw_projected_points(homog_3D, P):
 	plt.show()
 
 import pyglet
+from pyglet.window import mouse
 from pyglet.gl import *
 
 def opengl_init():
@@ -127,54 +128,44 @@ class CameraWindow(pyglet.window.Window):
 	def __init__(self, points, colours):
 		super(CameraWindow, self).__init__(resizable=True)
 		opengl_init()
-		self.x = 0
-		self.y = 0
-		self.z = 0
-		self.rx = 0
-		self.ry = 0
-		self.rz = 0
-		self.fov = 45
-		self.far = 819
+		self.x, self.y, self.z = 0, 0, 0
+		self.rx, self.ry, self.rz = 0, 0, 0
 		self.zoom = 1
-
+		self.fov = 180
+		self.near, self.far = -8192, 8192
 		self.points = points
 		self.colours = colours
 
-	def init_iso_camera(self):
+	def init_camera(self):
 		glMatrixMode(GL_PROJECTION)
 		glLoadIdentity()
-		# glOrtho(-self.width/2, self.width/2, -self.height/2, self.height/2, 0, 8192)
-		gluPerspective(self.fov, float(self.width)/self.height, 0.1, self.far)
+		gluPerspective(self.fov, float(self.width)/self.height, self.near, self.far)
 		glMatrixMode(GL_MODELVIEW)
 
+	def on_mouse_drag(self, x, y, dx, dy, button, modifiers):
+	    if button & mouse.LEFT:
+	            self.x -= dx*2
+	            self.y += dy*2
+	    if button & mouse.RIGHT:
+	            self.ry += dx/4
+	            self.rx -= dy/4
 
-	def on_mouse_drag(self, x, y, dx, dy, button, modifiers):		
-		if button == 1:
-			self.x -= dx*2
-			self.y += dy*2
-		if button == 2:
-			# self.x -= dx*2
-			# self.z -= dy*2
-			self.zoom += 1
-		if button == 3:
-			self.zoom -= 1
-		if button == 4:
-			self.ry += dx/40.
-			# self.rx -= dy/4.
+	def on_mouse_scroll(self, x, y, scroll_x, scroll_y):
+		self.zoom += scroll_y
 
 	def on_draw(self):
 		self.clear()
 		self.move_camera()
-		playground()
+		self.draw_plane()
 		self.draw_points()
 
 	def move_camera(self):
 		glLoadIdentity()
 		glTranslatef(-self.x, self.y, self.z)
-		glRotatef(self.rx, 1, 0, 0)
-		glRotatef(self.ry, 0, 1, 0)
-		glRotatef(self.rz, 0, 0, 1)
-		glScalef(self.zoom, self.zoom, 1)
+		glRotatef(self.rx, 1, 0, 0) # rotate by self.rx degrees about the x-axis
+		glRotatef(self.ry, 0, 1, 0) # rotate by self.ry degrees about the y-axis
+		glRotatef(self.rz, 0, 0, 1)	# rotate by self.rz degrees about the z-axis
+		glScalef(self.zoom, self.zoom, self.zoom)
 
 	def draw_points(self):		
 		points = self.points
@@ -183,25 +174,50 @@ class CameraWindow(pyglet.window.Window):
 		points = tuple(points.flatten())
 		colours = tuple(colours.flatten())
 		points_list = pyglet.graphics.vertex_list(num_pts, ('v3f', points), ('c3B', colours) )
-		# glClear(GL_COLOR_BUFFER_BIT)
 		points_list.draw(GL_POINTS)
 
-def playground():
-    """ Draw something here, like a white X."""
-    glColor4f(1, 1, 1, 1)
-    glBegin(GL_LINES)
-    glVertex3f(0, 0, 0)
-    glVertex3f(640, 480, 0)
+	def draw_plane(self):
+		'''Draw the x-z plane.'''
+		glColor4f(0.5,0.5,0.5,0.5)
+		glBegin(GL_LINES)
+		for i in range(-50, 50, 5):
+			# draw lines parallel to x-axis
+			glVertex3i(-50,0,i)
+			glVertex3i(50,0,i)
+		for i in range(-50, 50, 5):
+			# draw lines parallel to z-axis
+			glVertex3i(i, 0, -50)
+			glVertex3i(i, 0, 50)
+		glEnd()
 
-    glVertex3f(0, 480, 0)
-    glVertex3f(640, 0, 0)
-    glEnd()
+		'''Draw the x-y plane.'''
+		glColor4f(1.0,0.5,0.5,0.5)
+		glBegin(GL_LINES)
+		for i in range(-50, 50, 5):
+			# draw lines parallel to x-axis
+			glVertex3i(-50,i,0)
+			glVertex3i(50,i,0)
+		for i in range(-50, 50, 5):
+			# draw lines parallel to y-axis
+			glVertex3i(i, -50, 0)
+			glVertex3i(i, 50, 0)
+		glEnd()
 
-def display_pyglet(pts_3D, colours_for_pts):
+		'''Draw the y-z plane.'''
+		glColor4f(0.0,1.0,0.0,0.5)
+		glBegin(GL_LINES)
+		for i in range(-50, 50, 5):
+			# draw lines parallel to y-axis
+			glVertex3i(0, -50, i)
+			glVertex3i(0, 50, i)
+		for i in range(-50, 50, 5):
+			# draw lines parallel to z-axis
+			glVertex3i(0, i, -50)
+			glVertex3i(0, i, 50)
+		glEnd()
+
+def display_pyglet(pts_3D, colours):
 	'''Draw point cloud using Pyglet's wrapper for OpenGL.'''
-	
-	# window = pyglet.window.Window()
-	window = CameraWindow(points=pts_3D, colours=colours_for_pts)
-	window.init_iso_camera()
-
+	window = CameraWindow(points=pts_3D, colours=colours)
+	window.init_camera()
 	pyglet.app.run()
