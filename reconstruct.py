@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 from scipy.spatial import Delaunay
 from scipy import linalg
-import draw, sfm, vtk_cloud
+import draw, vtk_cloud
 
 def load_images(filename1, filename2):
 	'''Loads 2 images.'''
@@ -61,22 +61,6 @@ def match_keypoints(kp1, des1, kp2, des2):
 	else:
 	    print "Not enough matches were found - %d/%d" % (len(good_matches), MIN_MATCH_COUNT)
 
-	# good = []
-	# src_pts = []
-	# dst_pts = []
-
-	# ratio test as per Lowe's paper
-	# for i,(m,n) in enumerate(matches):
-	#     if m.distance < 0.7*n.distance:
-	#         good.append(m)
-	#         dst_pts.append([kp2[m.trainIdx].pt])
-	#         src_pts.append([kp1[m.queryIdx].pt])
-
-	# src_pts = np.float32(src_pts)
-	# dst_pts = np.float32(dst_pts)
-	# print "after matching: ", src_pts.shape
-
-	# src_pts and dst_pts are Nx1x2 arrays
 	return src_pts, dst_pts
 
 def find_fundamental_matrix(src_pts, dst_pts):
