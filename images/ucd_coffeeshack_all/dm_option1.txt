@@ -1,0 +1,6 @@
+VERSION   2
+BOUNDBOX  -0.5  -0.6  -10.5  0.7  0.0  -8.5
+NUMIMAGEs 2
+IMAGE1    00000011.jpg 00000011.camera.txt 00000011.daisy 3
+IMAGE2    00000012.jpg 00000012.camera.txt 00000012.daisy 3
+OUTPUT    output_11_12.dense.txt output_11_12.dense.ply 

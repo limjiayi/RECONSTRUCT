@@ -2,7 +2,7 @@ import os
 import cv2
 import numpy as np
 from scipy.spatial import Delaunay
-from scipy import linalg
+from gi.repository import GExiv2
 import draw, vtk_cloud
 
 def load_images(filename1, filename2):
@@ -14,6 +14,60 @@ def load_images(filename1, filename2):
 	img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
 
 	return img1, img2
+
+def build_calibration_matrices(i, prev_sensor, filename1, filename2):
+	'''Extract exif metadata from image files, and use them to build the 2 calibration matrices.'''
+
+	def validate(user_input):
+		'''Checks if each character in the string (except periods) are integers.'''
+		for i in user_input.translate(None, '.'):
+			if not 48 <= ord(i) <= 57:
+				return False
+		return True
+
+	def get_sensor_sizes(i, metadata1, metadata2, prev_sensor):
+		'''Displays camera model based on EXIF data.
+		Gets user's input on the width of the camera's sensor.'''
+		# focal length in pixels = (image width in pixels) * (focal length in mm) / (CCD width in mm)
+		if i == 0:
+			print "Camera %s is a %s." % (str(i+1), metadata1['Exif.Image.Model'])
+			sensor_1 = raw_input("What is the width (in mm) of camera %s's sensor? > " % str(i+1))
+			print "Camera %s is a %s." % (str(i+2), metadata2['Exif.Image.Model'])
+			sensor_2 = raw_input("What is the width (in mm) of camera %s's sensor? > " % str(i+2))
+		elif i >= 1:
+			sensor_1 = str(prev_sensor)
+			print "Camera %s is a %s." % (str(i+2), metadata2['Exif.Image.Model'])
+			sensor_2 = raw_input("What is the width (in mm) of camera %s's sensor? > " % str(i+2))
+
+		if validate(sensor_1) and validate(sensor_2):
+			return float(sensor_1), float(sensor_2)
+
+	metadata1 = GExiv2.Metadata(filename1)
+	metadata2 = GExiv2.Metadata(filename2)
+
+	if metadata1.get_supports_exif() and metadata2.get_supports_exif():
+		sensor_1, sensor_2 = get_sensor_sizes(i, metadata1, metadata2, prev_sensor)
+	else:
+		if metadata1.get_supports_exif() == False:
+			print "Exif data not available for ", filename1
+		if metadata2.get_supports_exif() == False:
+			print "Exif data not available for ", filename2
+		return None
+
+	# Calibration matrix for camera 1 (K1)
+	f1_mm = metadata1.get_focal_length()
+	w1 = metadata1.get_pixel_width()
+	h1 = metadata1.get_pixel_height()
+	f1_px = (w1 * f1_mm) / sensor_1
+	K1 = np.array([[f1_px, 0, w1/2], [0, f1_px, h1/2], [0,0,1]])
+
+	# Calibration matrix for camera 2 (K2)
+	f2_mm = metadata2.get_focal_length()
+	w2 = metadata2.get_pixel_width()
+	h2 = metadata2.get_pixel_height()
+	f2_px = (w2 * f2_mm) / sensor_2
+	K2 = np.array([[f2_px, 0, w2/2], [0, f2_px, h2/2], [0,0,1]])
+	return sensor_2, K1, K2
 
 def gray_images(img1, img2):
 	'''Convert images to grayscale if the images are found.'''
@@ -61,62 +115,74 @@ def match_keypoints(kp1, des1, kp2, des2):
 	else:
 	    print "Not enough matches were found - %d/%d" % (len(good_matches), MIN_MATCH_COUNT)
 
+	# src_pts and dst_pts are Nx1x2 arrays
 	return src_pts, dst_pts
 
-def find_fundamental_matrix(src_pts, dst_pts):
+def normalize_pts(K1, K2, src_pts, dst_pts):
+	# convert to 3xN arrays by making the points homogeneous
+	src_pts = np.vstack((np.array([ pt[0] for pt in src_pts ]).T, np.ones(src_pts.shape[0])))
+	dst_pts = np.vstack((np.array([ pt[0] for pt in dst_pts ]).T, np.ones(dst_pts.shape[0])))
+
+	# normalize with the calibration matrices
+	# norm_pts1 and norm_pts2 are 3xN arrays
+	norm_pts1 = np.dot(np.linalg.inv(K1), src_pts)
+	norm_pts2 = np.dot(np.linalg.inv(K2), dst_pts)
+
+	# convert back to Nx1x2 arrays
+	norm_pts1 = np.array([ [pt] for pt in norm_pts1[:2].T ])
+	norm_pts2 = np.array([ [pt] for pt in norm_pts2[:2].T ])
+
+	return norm_pts1, norm_pts2
+
+def find_essential_matrix(norm_pts1, norm_pts2):
 	# convert to Nx2 arrays for findFundamentalMat
-	src_pts = np.array([ pt[0] for pt in src_pts ])
-	dst_pts = np.array([ pt[0] for pt in dst_pts ])
-	F, mask = cv2.findFundamentalMat(src_pts, dst_pts, cv2.RANSAC)
+	norm_pts1 = np.array([ pt[0] for pt in norm_pts1 ])
+	norm_pts2 = np.array([ pt[0] for pt in norm_pts2 ])
+	E, mask = cv2.findFundamentalMat(norm_pts1, norm_pts2, cv2.RANSAC)
 
-	return F, mask
+	return E, mask
 
-def find_projection_matrices(F):
-	'''Compute the second camera matrix (assuming the first camera matrix = [I 0]).'''
-	# compute the right epipole from the fundamental matrix
-	U1, S1, V1 = cv2.SVDecomp(F)
-	right_epipole = V1[2] / V1[2, 2]
-
-	# compute the left epipole from the transpose of the fundamental matrix
-	U2, S2, V2 = cv2.SVDecomp(F.T) 
-	left_epipole = V2[2] / V2[2, 2]
-
+def find_projection_matrices(E):
+	'''Compute the second camera matrix (assuming the first camera matrix = [I 0]).
+	Output is a list of 4 possible camera matrices for P2.'''
 	# the first camera matrix is assumed to be the identity matrix
 	P1 = np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)
 
-	# find the 2nd camera matrix
-	skew_matrix = np.array([[0, -left_epipole[2], left_epipole[1]], [left_epipole[2], 0, -left_epipole[0]], [-left_epipole[1], left_epipole[0], 0]])
-	P2 = np.vstack((np.dot(skew_matrix, F.T).T, left_epipole)).T
+	# make sure E is rank 2
+	U, S, V = np.linalg.svd(E)
+	if np.linalg.det(np.dot(U, V)) < 0:
+		V = -V
+	E = np.dot(U, np.dot(np.diag([1,1,0]), V))
+
+	# create matrices
+	W = np.array([[0,-1,0], [1,0,0], [0,0,1]])
+
+	# return all four solutions
+	P2 = [np.vstack( (np.dot(U,np.dot(W,V)).T, U[:,2]) ).T, 
+		  np.vstack( (np.dot(U,np.dot(W,V)).T, -U[:,2]) ).T,
+		  np.vstack( (np.dot(U,np.dot(W.T,V)).T, U[:,2]) ).T, 
+		  np.vstack( (np.dot(U,np.dot(W.T,V)).T, -U[:,2]) ).T]
 
 	return P1, P2
 
-def get_camera_matrix(projMatrix):
-	'''Decompose the projection matrix of a camera to the camera matrix (K), rotation matrix (R) 
-	and translation vector (t)'''
-	K, R, t = cv2.decomposeProjectionMatrix(projMatrix)[:3]
-
-	return K, R, t
-
-def refine_points(src_pts, dst_pts, F, mask):
+def refine_points(norm_pts1, norm_pts2, F, mask):
 	'''Refine the coordinates of the corresponding points using the Optimal Triangulation Method.'''
-	print src_pts.shape
-
 	# select only inlier points
-	img1_pts = src_pts[mask.ravel()==1]
-	img2_pts = dst_pts[mask.ravel()==1]
+	norm_pts1 = norm_pts1[mask.ravel()==1]
+	norm_pts2 = norm_pts2[mask.ravel()==1]
 
 	# convert to 1xNx2 arrays for cv2.correctMatches
-	img1_pts = np.array([ [pt[0] for pt in img1_pts ] ])
-	img2_pts = np.array([ [pt[0] for pt in img2_pts ] ])
-	img1_pts, img2_pts = cv2.correctMatches(F, img1_pts, img2_pts)
+	refined_pts1 = np.array([ [pt[0] for pt in norm_pts1 ] ])
+	refined_pts2 = np.array([ [pt[0] for pt in norm_pts2 ] ])
+	refined_pts1, refined_pts2 = cv2.correctMatches(F, refined_pts1, refined_pts2)
 
 	# outputs are also 1xNx2 arrays
-	return img1_pts, img2_pts
+	return refined_pts1, refined_pts2
 
-def get_colours(img1, img2, img1_pts, img2_pts):
+def get_colours(img1, img2, refined_pts1, refined_pts2):
 	'''Extract RGB data from the original images and store them in new arrays.'''
 	# convert to Nx2 arrays of type int
-	img1_pts, img2_pts = img1_pts[0], img2_pts[0]
+	img1_pts, img2_pts = refined_pts1[0], refined_pts2[0]
 	img1_pts, img2_pts = img1_pts.astype(int), img2_pts.astype(int)
 
 	# extract RGB information and store in new arrays with the coordinates
@@ -125,15 +191,36 @@ def get_colours(img1, img2, img1_pts, img2_pts):
 
 	return img1_colours, img2_colours
 
-def triangulate_points(P1, P2, img1_pts, img2_pts):
+def triangulate_points(P1, P2, refined_pts1, refined_pts2):
 	'''Reconstructs 3D points by triangulation using Direct Linear Transformation.'''
 	# convert to 2xN arrays
-	img1_pts = img1_pts[0].T
-	img2_pts = img2_pts[0].T
+	img1_pts = refined_pts1[0].T
+	img2_pts = refined_pts2[0].T
 
-	# returns 4xN array of reconstructed points in homogeneous coordinates
+	# pick the P2 matrix with the most scene points in front of the cameras after triangulation
+	ind = 0
+	maxres = 0
+	for i in range(4):
+		# triangulate inliers and compute depth for each camera
+		homog_3D = cv2.triangulatePoints(P1, P2[i], img1_pts, img2_pts)
+		# the sign of the depth is the 3rd value of the image point after projecting back to the image
+		d1 = np.dot(P1, homog_3D)[2]
+		# print "d1 shape before ", np.dot(P1, homog_3D).shape
+		# print "d1: ", d1
+		d2 = np.dot(P2[i], homog_3D)[2]
+		# print "d2 shape before ", np.dot(P2[i], homog_3D).shape
+		# print "d2: ", d2
+
+		if sum(d1 > 0) + sum(d2 < 0) > maxres:
+			maxres = sum(d1 > 0) + sum(d2 > 0)
+			ind = i
+			infront = (d1 > 0) & (d2 < 0)
+
+	# triangulate inliers and keep only points that are in front of both cameras
+	# homog_3D is a 4xN array of reconstructed points in homogeneous coordinates
 	# pts_3D is a Nx3 array where each N contains an x, y and z-coord
-	homog_3D = cv2.triangulatePoints(P1, P2, img1_pts, img2_pts)
+	homog_3D = cv2.triangulatePoints(P1, P2[ind], img1_pts, img2_pts)
+	homog_3D = homog_3D[:, infront]
 	pts_3D = homog_3D / homog_3D[3]
 	pts_3D = np.array(pts_3D[:3]).T
 
@@ -154,111 +241,86 @@ def delaunay(pts_3D):
 
 	return faces
 
+
+
 def main():
-	# img1, img2 = load_images('images/Merton1/001.jpg', 'images/Merton1/002.jpg')
-	# img1, img2 = load_images('images/Dinosaur/viff.000.ppm', 'images/Dinosaur/viff.001.ppm')
-	img1, img2 = load_images('images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg')
-	img1_gray, img2_gray = gray_images(img1, img2)
-	kp1, des1, kp2, des2 = find_keypoints_descriptors(img1_gray, img2_gray)
-	src_pts, dst_pts = match_keypoints(kp1, des1, kp2, des2)
-	F, mask = find_fundamental_matrix(src_pts, dst_pts)
+	'''Loop through each pair of images, find point correspondences and generate 3D point cloud.
+	Multiply each point in each new point cloud by the cumulative matrix inverse to get the 3D point
+	(as seen by camera 1) and append this point to the overall point cloud.'''
+	# directory = 'images/ucd_building4_all'
+	# directory = 'images/ucd_coffeeshack_all'
+	# images = ['images/Dinosaur/viff.000.ppm', 'images/Dinosaur/viff.001.ppm']
+	images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
+	# images = ['images/Merton1/001.jpg', 'images/Merton1/002.jpg']
+	# images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
+	E_matrices = []
+	proj_matrices = []
+	prev_sensor = 0
 
-	P1, P2 = find_projection_matrices(F)
-	K1, R1, t1 = get_camera_matrix(P1)
-	K2, R2, t2 = get_camera_matrix(P2)
+	for i in range(len(images)-1):
+		print "Processing ", images[i].split('/')[2], "and ", images[i+1].split('/')[2]
+		prev_sensor, E,  P, homog_3D, pts_3D, img_colours = gen_pt_cloud(i, prev_sensor, images[i], images[i+1])
+		E_matrices.append(E)
+		proj_matrices.append(P)
 
-	img1_pts, img2_pts = refine_points(src_pts, dst_pts, F, mask)
-	homog_3D, pts_3D = triangulate_points(P1, P2, img1_pts, img2_pts)
-	img1_colours, img2_colours = get_colours(img1, img2, img1_pts, img2_pts)
+		if i == 0:
+			# first 2 images
+			E_inv = np.eye(3)
+			pt_cloud = list(pts_3D)
+			colours = list(img_colours)
+			print "cloud: ", len(pt_cloud)
+			print "colours: ", len(colours)
 
-	f = open('alcatraz.txt', 'r+')
-	np.savetxt('alcatraz.txt', [pt for pt in pts_3D])
+		elif i >= 1:
+			# find the cumulative matrix inverse
+			try:
+				E_inv = np.dot(np.linalg.inv(E_matrices[i-1]), E_inv)
+				for pt in pts_3D:
+					pt = np.dot(pt, E_inv)
+					pt_cloud.append(pt)
+				for colour in img_colours:
+					colours.append(colour)
 
-	# convert from 1xNx2 to Nx1x2 arrays
-	img1_pts = np.array([ [pt] for pt in img1_pts[0] ])
-	img2_pts = np.array([ [pt] for pt in img2_pts[0] ])
-	draw.draw_matches(img1_pts, img2_pts, img1_gray, img2_gray)
+			except np.linalg.linalg.LinAlgError as err:
+				if 'Singular matrix' in err.message:
+					print "Singular matrix"
+					continue
+			
+			print "cloud: ", len(pt_cloud)
+			print "colours: ", len(colours)
 
-	# delaunay(pts_3D)
+	pt_cloud = np.array(pt_cloud)
+	homog_pt_cloud = np.vstack((pt_cloud.T, np.ones(pt_cloud.shape[0])))
+	colours = np.array(colours)
+	print "pt cloud: ", pt_cloud.shape
+	print "homog_cloud: ", homog_pt_cloud.shape
+	print "colours: ", colours.shape
+	# faces = delaunay(pts_3D)
 
 	# draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
 	# draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
-	draw.draw_projected_points(homog_3D, P2)
-	draw.display_pyglet(pts_3D, img1_colours)
+	# draw.draw_projected_points(homog_pt_cloud, P)
+	# draw.display_pyglet(pt_cloud, colours)
+	# draw.display_pyglet(pt_cloud_norm.T, colours)
 	vtk_cloud.vtk_show_points(pts_3D)
 
+def gen_pt_cloud(i, prev_sensor, image1, image2):
+	'''Generates a point cloud for every pair of images.'''
+	img1, img2 = load_images(image1, image2)
+	sensor_i, K1, K2 = build_calibration_matrices(i, prev_sensor, image1, image2)
 
-# def main():
-# 	'''Loop through each pair of images, find point correspondences and generate 3D point cloud.
-# 	Multiply each point in each new point cloud by the cumulative matrix inverse to get the 3D point
-# 	(as seen by camera 1) and append this point to the overall point cloud.'''
-# 	directory = 'images/Merton1'
-# 	# images = ['images/Dinosaur/viff.000.ppm', 'images/Dinosaur/viff.001.ppm']
-# 	# images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
-# 	# images = ['images/Merton1/001.jpg', 'images/Merton1/002.jpg']
-# 	images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2] in ('jpg', 'png', 'pgm', 'ppm') ])
-# 	f_matrices = []
-# 	proj_matrices = []
+	img1_gray, img2_gray = gray_images(img1, img2)
+	kp1, des1, kp2, des2 = find_keypoints_descriptors(img1_gray, img2_gray)
+	src_pts, dst_pts = match_keypoints(kp1, des1, kp2, des2)
+	norm_pts1, norm_pts2 = normalize_pts(K1, K2, src_pts, dst_pts)
 
-# 	for i in range(len(images)-1):
-# 		F,  P, homog_3D, pts_3D, img_colours = gen_pt_cloud(images[i], images[i+1])
-# 		f_matrices.append(F)
-# 		proj_matrices.append(P)
+	E, mask = find_essential_matrix(norm_pts1, norm_pts2)
+	P1, P2 = find_projection_matrices(E)
 
-# 		if i == 0:
-# 			# first 2 images
-# 			F_inv = np.eye(3)
-# 			pt_cloud = list(pts_3D)
-# 			colours = list(img_colours)
+	refined_pts1, refined_pts2 = refine_points(norm_pts1, norm_pts2, E, mask)
+	homog_3D, pts_3D = triangulate_points(P1, P2, refined_pts1, refined_pts2)
+	img1_colours, img2_colours = get_colours(img1, img2, refined_pts1, refined_pts2)
 
-# 		elif i >= 1:
-# 			# find the cumulative matrix inverse
-# 			F_inv = np.dot(linalg.inv(f_matrices[i-1]), F_inv)
-
-# 			for pt in pts_3D:
-# 				pt = np.dot(pt, F_inv)
-# 				pt_cloud.append(pt)
-
-# 			for colour in img_colours:
-# 				colours.append(colour)
-
-# 	pt_cloud = np.array(pt_cloud)
-
-# 	norm_matrix = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1000]])
-# 	pt_cloud_norm = np.dot(norm_matrix, pt_cloud.T)
-# 	print "x vals: \n", "min: ", min(pt_cloud_norm[0]), "max:", max(pt_cloud_norm[0]), "\n", "mean: ", np.mean(pt_cloud_norm[0]), "std dev: ", np.std(pt_cloud_norm[0]), "\n"
-# 	print "y vals: \n", "min: ", min(pt_cloud_norm[1]), "max:", max(pt_cloud_norm[1]), "\n", "mean: ", np.mean(pt_cloud_norm[1]), "std dev: ", np.std(pt_cloud_norm[1]), "\n"
-# 	print "z vals: \n", "min: ", min(pt_cloud_norm[2]), "max:", max(pt_cloud_norm[2]), "\n", "mean: ", np.mean(pt_cloud_norm[2]), "std dev: ", np.std(pt_cloud_norm[2]), "\n"
-# 	center = np.array([np.mean(pt_cloud_norm[0]), np.mean(pt_cloud_norm[1]), np.mean(pt_cloud_norm[2])])
-# 	print "center: ", center
-
-# 	homog_pt_cloud = np.vstack((pt_cloud.T, np.ones(pt_cloud.shape[0])))
-# 	colours = np.array(colours)
-# 	faces = delaunay(pts_3D)
-
-# 	# draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
-# 	# draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
-# 	draw.draw_projected_points(homog_pt_cloud, P)
-# 	draw.display_pyglet(pt_cloud, colours)
-# 	# draw.display_pyglet(pt_cloud_norm.T, colours)
-# 	# draw.display_mayavi(pt_cloud, colours)
-# 	vtk_cloud.vtk_show_points(pts_3D)
-
-# def gen_pt_cloud(image1, image2):
-# 	img1, img2 = load_images(image1, image2)
-# 	img1_gray, img2_gray = gray_images(img1, img2)
-# 	kp1, des1, kp2, des2 = find_keypoints_descriptors(img1_gray, img2_gray)
-# 	src_pts, dst_pts = match_keypoints(kp1, des1, kp2, des2)
-
-# 	F, mask = find_fundamental_matrix(src_pts, dst_pts)
-# 	P1, P2 = find_projection_matrices(F)
-# 	# K1, R1, t1 = get_camera_matrix(P1)
-# 	# K2, R2, t2 = get_camera_matrix(P2)
-
-# 	img1_pts, img2_pts = refine_points(src_pts, dst_pts, F, mask)
-# 	homog_3D, pts_3D = triangulate_points(P1, P2, img1_pts, img2_pts)
-# 	img1_colours, img2_colours = get_colours(img1, img2, img1_pts, img2_pts)
-
-# 	return F, P1, homog_3D, pts_3D, img1_colours
+	return sensor_i, E, P1, homog_3D, pts_3D, img1_colours
 
 main()

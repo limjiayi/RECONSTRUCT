@@ -156,7 +156,7 @@ class CameraWindow(pyglet.window.Window):
 	def on_draw(self):
 		self.clear()
 		self.move_camera()
-		self.draw_plane()
+		# self.draw_plane()
 		self.draw_points()
 
 	def move_camera(self):

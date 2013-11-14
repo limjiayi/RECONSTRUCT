@@ -1,0 +1,6 @@
+VERSION   2
+BOUNDBOX  0 0 0  0 0 0
+NUMIMAGEs 2
+IMAGE1    00000009.jpg 00000009.camera.txt 00000009.daisy 3
+IMAGE2    00000008.jpg 00000008.camera.txt 00000008.daisy 3
+OUTPUT    output_09_08.dense.txt output_09_08.dense.ply 
