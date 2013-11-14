@@ -25,7 +25,7 @@ def build_calibration_matrices(i, prev_sensor, filename1, filename2):
 				return False
 		return True
 
-	def get_sensor_sizes(i, metadata1, metadata2, prev_sensor):
+	def get_sensor_sizes(i, prev_sensor, metadata1, metadata2):
 		'''Displays camera model based on EXIF data.
 		Gets user's input on the width of the camera's sensor.'''
 		# focal length in pixels = (image width in pixels) * (focal length in mm) / (CCD width in mm)
@@ -46,7 +46,7 @@ def build_calibration_matrices(i, prev_sensor, filename1, filename2):
 	metadata2 = GExiv2.Metadata(filename2)
 
 	if metadata1.get_supports_exif() and metadata2.get_supports_exif():
-		sensor_1, sensor_2 = get_sensor_sizes(i, metadata1, metadata2, prev_sensor)
+		sensor_1, sensor_2 = get_sensor_sizes(i, prev_sensor, metadata1, metadata2)
 	else:
 		if metadata1.get_supports_exif() == False:
 			print "Exif data not available for ", filename1
@@ -165,7 +165,7 @@ def find_projection_matrices(E):
 
 	return P1, P2
 
-def refine_points(norm_pts1, norm_pts2, F, mask):
+def refine_points(norm_pts1, norm_pts2, E, mask):
 	'''Refine the coordinates of the corresponding points using the Optimal Triangulation Method.'''
 	# select only inlier points
 	norm_pts1 = norm_pts1[mask.ravel()==1]
@@ -174,7 +174,7 @@ def refine_points(norm_pts1, norm_pts2, F, mask):
 	# convert to 1xNx2 arrays for cv2.correctMatches
 	refined_pts1 = np.array([ [pt[0] for pt in norm_pts1 ] ])
 	refined_pts2 = np.array([ [pt[0] for pt in norm_pts2 ] ])
-	refined_pts1, refined_pts2 = cv2.correctMatches(F, refined_pts1, refined_pts2)
+	refined_pts1, refined_pts2 = cv2.correctMatches(E, refined_pts1, refined_pts2)
 
 	# outputs are also 1xNx2 arrays
 	return refined_pts1, refined_pts2
@@ -201,21 +201,29 @@ def triangulate_points(P1, P2, refined_pts1, refined_pts2):
 	ind = 0
 	maxres = 0
 	for i in range(4):
+		print "P", i
 		# triangulate inliers and compute depth for each camera
 		homog_3D = cv2.triangulatePoints(P1, P2[i], img1_pts, img2_pts)
 		# the sign of the depth is the 3rd value of the image point after projecting back to the image
+		# i.e. the z-value?
 		d1 = np.dot(P1, homog_3D)[2]
-		# print "d1 shape before ", np.dot(P1, homog_3D).shape
+		print "num pts: ", np.dot(P1, homog_3D).shape
 		# print "d1: ", d1
 		d2 = np.dot(P2[i], homog_3D)[2]
-		# print "d2 shape before ", np.dot(P2[i], homog_3D).shape
 		# print "d2: ", d2
+		
+		num_true = 0
+		for item in (d1 > 0) & (d2 < 0):
+			if item == True:
+				num_true += 1
+		print "pts in front: ", num_true
 
 		if sum(d1 > 0) + sum(d2 < 0) > maxres:
-			maxres = sum(d1 > 0) + sum(d2 > 0)
+			maxres = sum(d1 > 0) + sum(d2 < 0)
 			ind = i
 			infront = (d1 > 0) & (d2 < 0)
 
+	print "selected: P", ind
 	# triangulate inliers and keep only points that are in front of both cameras
 	# homog_3D is a 4xN array of reconstructed points in homogeneous coordinates
 	# pts_3D is a Nx3 array where each N contains an x, y and z-coord
@@ -247,12 +255,12 @@ def main():
 	'''Loop through each pair of images, find point correspondences and generate 3D point cloud.
 	Multiply each point in each new point cloud by the cumulative matrix inverse to get the 3D point
 	(as seen by camera 1) and append this point to the overall point cloud.'''
-	# directory = 'images/ucd_building4_all'
-	# directory = 'images/ucd_coffeeshack_all'
+	# directory = 'images/ucd_building6_all'
+	directory = 'images/ucd_coffeeshack_all'
 	# images = ['images/Dinosaur/viff.000.ppm', 'images/Dinosaur/viff.001.ppm']
-	images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
+	# images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
 	# images = ['images/Merton1/001.jpg', 'images/Merton1/002.jpg']
-	# images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
+	images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
 	E_matrices = []
 	proj_matrices = []
 	prev_sensor = 0
@@ -275,16 +283,17 @@ def main():
 			# find the cumulative matrix inverse
 			try:
 				E_inv = np.dot(np.linalg.inv(E_matrices[i-1]), E_inv)
-				for pt in pts_3D:
-					pt = np.dot(pt, E_inv)
-					pt_cloud.append(pt)
-				for colour in img_colours:
-					colours.append(colour)
-
 			except np.linalg.linalg.LinAlgError as err:
 				if 'Singular matrix' in err.message:
 					print "Singular matrix"
 					continue
+
+			for pt in pts_3D:
+				pt = np.dot(pt, E_inv)
+				pt_cloud.append(pt)
+
+			for colour in img_colours:
+				colours.append(colour)
 			
 			print "cloud: ", len(pt_cloud)
 			print "colours: ", len(colours)
@@ -301,7 +310,9 @@ def main():
 	# draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
 	# draw.draw_projected_points(homog_pt_cloud, P)
 	# draw.display_pyglet(pt_cloud, colours)
-	# draw.display_pyglet(pt_cloud_norm.T, colours)
+	f = open('ucd_coffeeshack_all.txt', 'r+')
+	np.savetxt('ucd_coffeeshack_all.txt', [pt for pt in pts_3D])
+	# pts_3D = np.loadtxt('ucd_building6_all.txt')
 	vtk_cloud.vtk_show_points(pts_3D)
 
 def gen_pt_cloud(i, prev_sensor, image1, image2):
