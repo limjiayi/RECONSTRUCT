@@ -249,72 +249,6 @@ def delaunay(pts_3D):
 
 	return faces
 
-
-
-def main():
-	'''Loop through each pair of images, find point correspondences and generate 3D point cloud.
-	Multiply each point in each new point cloud by the cumulative matrix inverse to get the 3D point
-	(as seen by camera 1) and append this point to the overall point cloud.'''
-	# directory = 'images/ucd_building6_all'
-	directory = 'images/ucd_coffeeshack_all'
-	# images = ['images/Dinosaur/viff.000.ppm', 'images/Dinosaur/viff.001.ppm']
-	# images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
-	# images = ['images/Merton1/001.jpg', 'images/Merton1/002.jpg']
-	images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
-	E_matrices = []
-	proj_matrices = []
-	prev_sensor = 0
-
-	for i in range(len(images)-1):
-		print "Processing ", images[i].split('/')[2], "and ", images[i+1].split('/')[2]
-		prev_sensor, E,  P, homog_3D, pts_3D, img_colours = gen_pt_cloud(i, prev_sensor, images[i], images[i+1])
-		E_matrices.append(E)
-		proj_matrices.append(P)
-
-		if i == 0:
-			# first 2 images
-			E_inv = np.eye(3)
-			pt_cloud = list(pts_3D)
-			colours = list(img_colours)
-			print "cloud: ", len(pt_cloud)
-			print "colours: ", len(colours)
-
-		elif i >= 1:
-			# find the cumulative matrix inverse
-			try:
-				E_inv = np.dot(np.linalg.inv(E_matrices[i-1]), E_inv)
-			except np.linalg.linalg.LinAlgError as err:
-				if 'Singular matrix' in err.message:
-					print "Singular matrix"
-					continue
-
-			for pt in pts_3D:
-				pt = np.dot(pt, E_inv)
-				pt_cloud.append(pt)
-
-			for colour in img_colours:
-				colours.append(colour)
-			
-			print "cloud: ", len(pt_cloud)
-			print "colours: ", len(colours)
-
-	pt_cloud = np.array(pt_cloud)
-	homog_pt_cloud = np.vstack((pt_cloud.T, np.ones(pt_cloud.shape[0])))
-	colours = np.array(colours)
-	print "pt cloud: ", pt_cloud.shape
-	print "homog_cloud: ", homog_pt_cloud.shape
-	print "colours: ", colours.shape
-	# faces = delaunay(pts_3D)
-
-	# draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
-	# draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
-	# draw.draw_projected_points(homog_pt_cloud, P)
-	# draw.display_pyglet(pt_cloud, colours)
-	f = open('ucd_coffeeshack_all.txt', 'r+')
-	np.savetxt('ucd_coffeeshack_all.txt', [pt for pt in pts_3D])
-	# pts_3D = np.loadtxt('ucd_building6_all.txt')
-	vtk_cloud.vtk_show_points(pts_3D)
-
 def gen_pt_cloud(i, prev_sensor, image1, image2):
 	'''Generates a point cloud for every pair of images.'''
 	img1, img2 = load_images(image1, image2)
@@ -330,8 +264,76 @@ def gen_pt_cloud(i, prev_sensor, image1, image2):
 
 	refined_pts1, refined_pts2 = refine_points(norm_pts1, norm_pts2, E, mask)
 	homog_3D, pts_3D = triangulate_points(P1, P2, refined_pts1, refined_pts2)
-	img1_colours, img2_colours = get_colours(img1, img2, refined_pts1, refined_pts2)
+	# img1_colours, img2_colours = get_colours(img1, img2, refined_pts1, refined_pts2)
 
-	return sensor_i, E, P1, homog_3D, pts_3D, img1_colours
+	return sensor_i, E, P1, homog_3D, pts_3D#, img1_colours
+
+
+
+def main():
+	'''Loop through each pair of images, find point correspondences and generate 3D point cloud.
+	Multiply each point in each new point cloud by the cumulative matrix inverse to get the 3D point
+	(as seen by camera 1) and append this point to the overall point cloud.'''
+	# directory = 'images/ucd_building6_all'
+	# directory = 'images/ucd_coffeeshack_all'
+	images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg', 'images/ucd_building4_all/00000002.jpg', 'images/ucd_building4_all/00000002.jpg']
+	# images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
+	# images = ['images/Merton1/001.jpg', 'images/Merton1/002.jpg']
+	# images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
+	E_matrices = []
+	proj_matrices = []
+	prev_sensor = 0
+
+	for i in range(len(images)-1):
+		print "Processing ", images[i].split('/')[2], "and ", images[i+1].split('/')[2]
+		# remember to put img_colours back in after pts_3D
+		prev_sensor, E,  P, homog_3D, pts_3D = gen_pt_cloud(i, prev_sensor, images[i], images[i+1])
+		E_matrices.append(E)
+		proj_matrices.append(P)
+
+		if i == 0:
+			# first 2 images
+			E_inv = np.eye(3)
+			pt_cloud = list(pts_3D)
+			# colours = list(img_colours)
+			# print "cloud: ", len(pt_cloud)
+			# print "colours: ", len(colours)
+
+		elif i >= 1:
+			# find the cumulative matrix inverse
+			try:
+				E_inv = np.dot(np.linalg.inv(E_matrices[i-1]), E_inv)
+			except np.linalg.linalg.LinAlgError as err:
+				if 'Singular matrix' in err.message:
+					print "Singular matrix"
+					continue
+
+			for pt in pts_3D:
+				pt = np.dot(pt, E_inv)
+				pt_cloud.append(pt)
+
+			# for colour in img_colours:
+			# 	colours.append(colour)
+			
+			print "cloud: ", len(pt_cloud)
+			# print "colours: ", len(colours)
+
+	pt_cloud = np.array(pt_cloud)
+	homog_pt_cloud = np.vstack((pt_cloud.T, np.ones(pt_cloud.shape[0])))
+	# colours = np.array(colours)
+	print "pt cloud: ", pt_cloud.shape
+	print "homog_cloud: ", homog_pt_cloud.shape
+	# print "colours: ", colours.shape
+	# faces = delaunay(pts_3D)
+
+	# draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
+	# draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
+	# draw.draw_projected_points(homog_pt_cloud, P)
+	# draw.display_pyglet(pt_cloud, colours)
+	f = open('ucd_building4_0-3.txt', 'r+')
+	np.savetxt('ucd_building4_0-3.txt', [pt for pt in pts_3D])
+	# pts_3D = np.loadtxt('ucd_building6_all.txt')
+	vtk_cloud.vtk_show_points(pts_3D)
+
 
 main()
