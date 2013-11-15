@@ -179,17 +179,17 @@ def refine_points(norm_pts1, norm_pts2, E, mask):
 	# outputs are also 1xNx2 arrays
 	return refined_pts1, refined_pts2
 
-def get_colours(img1, img2, refined_pts1, refined_pts2):
+def get_colours(img1, P1, homog_3D):
 	'''Extract RGB data from the original images and store them in new arrays.'''
-	# convert to Nx2 arrays of type int
-	img1_pts, img2_pts = refined_pts1[0], refined_pts2[0]
-	img1_pts, img2_pts = img1_pts.astype(int), img2_pts.astype(int)
+	# project 3D points back to the image plane
+	# camera.project returns a 3xN array of homogeneous points --> convert to Nx3 array 
+	camera = draw.Camera(P1)
+	img_pts = camera.project(homog_3D).T
 
 	# extract RGB information and store in new arrays with the coordinates
-	img1_colours = np.array([ img1[ pt[1] ][ pt[0] ] for pt in img1_pts ])
-	img2_colours = np.array([ img2[ pt[1] ][ pt[0] ] for pt in img2_pts ])
+	img_colours = np.array([ img1[ pt[1] ][ pt[0] ] for pt in img_pts ])
 
-	return img1_colours, img2_colours
+	return img_colours
 
 def triangulate_points(P1, P2, refined_pts1, refined_pts2):
 	'''Reconstructs 3D points by triangulation using Direct Linear Transformation.'''
@@ -264,9 +264,9 @@ def gen_pt_cloud(i, prev_sensor, image1, image2):
 
 	refined_pts1, refined_pts2 = refine_points(norm_pts1, norm_pts2, E, mask)
 	homog_3D, pts_3D = triangulate_points(P1, P2, refined_pts1, refined_pts2)
-	# img1_colours, img2_colours = get_colours(img1, img2, refined_pts1, refined_pts2)
+	img_colours = get_colours(img1, P1, homog_3D)
 
-	return sensor_i, E, P1, homog_3D, pts_3D#, img1_colours
+	return sensor_i, E, P1, homog_3D, pts_3D, img_colours
 
 
 
@@ -286,8 +286,7 @@ def main():
 
 	for i in range(len(images)-1):
 		print "Processing ", images[i].split('/')[2], "and ", images[i+1].split('/')[2]
-		# remember to put img_colours back in after pts_3D
-		prev_sensor, E,  P, homog_3D, pts_3D = gen_pt_cloud(i, prev_sensor, images[i], images[i+1])
+		prev_sensor, E,  P, homog_3D, pts_3D, img_colours = gen_pt_cloud(i, prev_sensor, images[i], images[i+1])
 		E_matrices.append(E)
 		proj_matrices.append(P)
 
@@ -295,9 +294,7 @@ def main():
 			# first 2 images
 			E_inv = np.eye(3)
 			pt_cloud = list(pts_3D)
-			# colours = list(img_colours)
-			# print "cloud: ", len(pt_cloud)
-			# print "colours: ", len(colours)
+			colours = list(img_colours)
 
 		elif i >= 1:
 			# find the cumulative matrix inverse
@@ -312,18 +309,12 @@ def main():
 				pt = np.dot(pt, E_inv)
 				pt_cloud.append(pt)
 
-			# for colour in img_colours:
-			# 	colours.append(colour)
+			for colour in img_colours:
+				colours.append(colour)
 			
-			print "cloud: ", len(pt_cloud)
-			# print "colours: ", len(colours)
-
 	pt_cloud = np.array(pt_cloud)
 	homog_pt_cloud = np.vstack((pt_cloud.T, np.ones(pt_cloud.shape[0])))
-	# colours = np.array(colours)
-	print "pt cloud: ", pt_cloud.shape
-	print "homog_cloud: ", homog_pt_cloud.shape
-	# print "colours: ", colours.shape
+	colours = np.array(colours)
 	# faces = delaunay(pts_3D)
 
 	# draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
@@ -332,7 +323,7 @@ def main():
 	# draw.display_pyglet(pt_cloud, colours)
 	f = open('ucd_building4_0-3.txt', 'r+')
 	np.savetxt('ucd_building4_0-3.txt', [pt for pt in pts_3D])
-	# pts_3D = np.loadtxt('ucd_building6_all.txt')
+	# pts_3D = np.loadtxt('ucd_building4_0-3.txt')
 	vtk_cloud.vtk_show_points(pts_3D)
 
 
