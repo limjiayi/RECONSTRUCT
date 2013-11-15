@@ -207,7 +207,7 @@ def triangulate_points(P1, P2, refined_pts1, refined_pts2):
 		# the sign of the depth is the 3rd value of the image point after projecting back to the image
 		# i.e. the z-value?
 		d1 = np.dot(P1, homog_3D)[2]
-		print "num pts: ", np.dot(P1, homog_3D).shape
+		print "num pts: ", np.dot(P1, homog_3D).shape[1]
 		# print "d1: ", d1
 		d2 = np.dot(P2[i], homog_3D)[2]
 		# print "d2: ", d2
@@ -274,12 +274,12 @@ def main():
 	'''Loop through each pair of images, find point correspondences and generate 3D point cloud.
 	Multiply each point in each new point cloud by the cumulative matrix inverse to get the 3D point
 	(as seen by camera 1) and append this point to the overall point cloud.'''
-	# directory = 'images/ucd_building6_all'
+	directory = 'images/ucd_building4_all'
 	# directory = 'images/ucd_coffeeshack_all'
-	images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg', 'images/ucd_building4_all/00000002.jpg', 'images/ucd_building4_all/00000002.jpg']
 	# images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
+	# images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg', 'images/ucd_building4_all/00000002.jpg']
 	# images = ['images/Merton1/001.jpg', 'images/Merton1/002.jpg']
-	# images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
+	images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
 	E_matrices = []
 	proj_matrices = []
 	prev_sensor = 0
@@ -287,6 +287,7 @@ def main():
 	for i in range(len(images)-1):
 		print "Processing ", images[i].split('/')[2], "and ", images[i+1].split('/')[2]
 		prev_sensor, E,  P, homog_3D, pts_3D, img_colours = gen_pt_cloud(i, prev_sensor, images[i], images[i+1])
+		print "pts_3D: ", pts_3D.shape
 		E_matrices.append(E)
 		proj_matrices.append(P)
 
@@ -306,25 +307,27 @@ def main():
 					continue
 
 			for pt in pts_3D:
-				pt = np.dot(pt, E_inv)
-				pt_cloud.append(pt)
+				inv_pt = np.dot(E_inv, pt.T).T
+				pt_cloud.append(inv_pt)
 
 			for colour in img_colours:
 				colours.append(colour)
-			
+		print "pt_cloud: ", len(pt_cloud)
+			 
 	pt_cloud = np.array(pt_cloud)
-	homog_pt_cloud = np.vstack((pt_cloud.T, np.ones(pt_cloud.shape[0])))
+	# print "pt_cloud: ", pt_cloud.shape
+	# homog_pt_cloud = np.vstack((pt_cloud.T, np.ones(pt_cloud.shape[0])))
 	colours = np.array(colours)
 	# faces = delaunay(pts_3D)
 
 	# draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
 	# draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
 	# draw.draw_projected_points(homog_pt_cloud, P)
+	f = open('ucd_building4_all.txt', 'r+')
+	np.savetxt('ucd_building4_all.txt', [pt for pt in pt_cloud])
+	# pt_cloud = np.loadtxt('ucd_building4_all.txt')
 	# draw.display_pyglet(pt_cloud, colours)
-	f = open('ucd_building4_0-3.txt', 'r+')
-	np.savetxt('ucd_building4_0-3.txt', [pt for pt in pts_3D])
-	# pts_3D = np.loadtxt('ucd_building4_0-3.txt')
-	vtk_cloud.vtk_show_points(pts_3D)
+	vtk_cloud.vtk_show_points(pt_cloud)
 
 
 main()
