@@ -201,29 +201,27 @@ def triangulate_points(P1, P2, refined_pts1, refined_pts2):
 	ind = 0
 	maxres = 0
 	for i in range(4):
-		print "P", i
+		# print "P", i
 		# triangulate inliers and compute depth for each camera
 		homog_3D = cv2.triangulatePoints(P1, P2[i], img1_pts, img2_pts)
 		# the sign of the depth is the 3rd value of the image point after projecting back to the image
 		# i.e. the z-value?
 		d1 = np.dot(P1, homog_3D)[2]
-		print "num pts: ", np.dot(P1, homog_3D).shape[1]
-		# print "d1: ", d1
+		# print "num pts: ", np.dot(P1, homog_3D).shape[1]
 		d2 = np.dot(P2[i], homog_3D)[2]
-		# print "d2: ", d2
 		
-		num_true = 0
-		for item in (d1 > 0) & (d2 < 0):
-			if item == True:
-				num_true += 1
-		print "pts in front: ", num_true
+		# num_true = 0
+		# for item in (d1 > 0) & (d2 < 0):
+		# 	if item == True:
+		# 		num_true += 1
+		# print "pts in front: ", num_true
 
 		if sum(d1 > 0) + sum(d2 < 0) > maxres:
 			maxres = sum(d1 > 0) + sum(d2 < 0)
 			ind = i
 			infront = (d1 > 0) & (d2 < 0)
 
-	print "selected: P", ind
+	# print "selected: P", ind
 	# triangulate inliers and keep only points that are in front of both cameras
 	# homog_3D is a 4xN array of reconstructed points in homogeneous coordinates
 	# pts_3D is a Nx3 array where each N contains an x, y and z-coord
@@ -272,12 +270,12 @@ def gen_pt_cloud(i, prev_sensor, image1, image2):
 
 def main():
 	'''Loop through each pair of images, find point correspondences and generate 3D point cloud.
-	Multiply each point in each new point cloud by the cumulative matrix inverse to get the 3D point
-	(as seen by camera 1) and append this point to the overall point cloud.'''
+	Multiply each point in each new point cloud by all the essential matrix inverses up to that point 
+	to get the 3D point (as seen by camera 1) and append this point to the overall point cloud.'''
 	directory = 'images/ucd_building4_all'
 	# directory = 'images/ucd_coffeeshack_all'
 	# images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
-	# images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg', 'images/ucd_building4_all/00000002.jpg']
+	# images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg', 'images/ucd_building4_all/00000002.jpg', 'images/ucd_building4_all/00000003.jpg']
 	# images = ['images/Merton1/001.jpg', 'images/Merton1/002.jpg']
 	images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
 	E_matrices = []
@@ -287,43 +285,37 @@ def main():
 	for i in range(len(images)-1):
 		print "Processing ", images[i].split('/')[2], "and ", images[i+1].split('/')[2]
 		prev_sensor, E,  P, homog_3D, pts_3D, img_colours = gen_pt_cloud(i, prev_sensor, images[i], images[i+1])
-		print "pts_3D: ", pts_3D.shape
 		E_matrices.append(E)
 		proj_matrices.append(P)
 
 		if i == 0:
 			# first 2 images
-			E_inv = np.eye(3)
-			pt_cloud = list(pts_3D)
-			colours = list(img_colours)
+			print pts_3D
+			pt_cloud = np.array(pts_3D)
+			colours = np.array(img_colours)
 
 		elif i >= 1:
-			# find the cumulative matrix inverse
-			try:
-				E_inv = np.dot(np.linalg.inv(E_matrices[i-1]), E_inv)
-			except np.linalg.linalg.LinAlgError as err:
-				if 'Singular matrix' in err.message:
-					print "Singular matrix"
-					continue
+			# j keeps track of the essential matrix to be inversed
+			for j in reversed(range(i)):
+				print "Multiplying the inverse of E_matrices[%s] to each pt" % j
+				pts_3D = np.array([ np.dot(np.linalg.inv(proj_matrices[j][:,:3]), pt.T).T for pt in pts_3D ])
+				print pts_3D
+				# pts_3D = np.array([ np.dot(pt, np.linalg.inv(E_matrices[j])) for pt in pts_3D ])
 
-			for pt in pts_3D:
-				inv_pt = np.dot(E_inv, pt.T).T
-				pt_cloud.append(inv_pt)
+			print "pt_cloud shape: ", pt_cloud.shape
+			print "pts_3D shape: ", pts_3D.shape
+			pt_cloud = np.vstack((pt_cloud, pts_3D))
+			colours = np.vstack((colours, img_colours))
 
-			for colour in img_colours:
-				colours.append(colour)
-		print "pt_cloud: ", len(pt_cloud)
-			 
-	pt_cloud = np.array(pt_cloud)
-	# print "pt_cloud: ", pt_cloud.shape
+			print "pt_cloud: ", pt_cloud.shape
+			print "colours: ", colours.shape
+		 
 	# homog_pt_cloud = np.vstack((pt_cloud.T, np.ones(pt_cloud.shape[0])))
-	colours = np.array(colours)
 	# faces = delaunay(pts_3D)
 
 	# draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
 	# draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
 	# draw.draw_projected_points(homog_pt_cloud, P)
-	f = open('ucd_building4_all.txt', 'r+')
 	np.savetxt('ucd_building4_all.txt', [pt for pt in pt_cloud])
 	# pt_cloud = np.loadtxt('ucd_building4_all.txt')
 	# draw.display_pyglet(pt_cloud, colours)
