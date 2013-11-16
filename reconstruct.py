@@ -5,8 +5,6 @@ from scipy.spatial import Delaunay
 from gi.repository import GExiv2
 import draw, vtk_cloud
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3D import Axes3D
-from mpl_toolkits.mplot3D import Poly3DCollection
 
 def load_images(filename1, filename2):
 	'''Loads 2 images.'''
@@ -137,11 +135,12 @@ def normalize_pts(K1, K2, src_pts, dst_pts):
 
 	return norm_pts1, norm_pts2
 
-def find_essential_matrix(norm_pts1, norm_pts2):
+def find_essential_matrix(K, norm_pts1, norm_pts2):
 	# convert to Nx2 arrays for findFundamentalMat
 	norm_pts1 = np.array([ pt[0] for pt in norm_pts1 ])
 	norm_pts2 = np.array([ pt[0] for pt in norm_pts2 ])
-	E, mask = cv2.findFundamentalMat(norm_pts1, norm_pts2, cv2.RANSAC)
+	F, mask = cv2.findFundamentalMat(norm_pts1, norm_pts2, cv2.RANSAC)
+	E = np.dot(K.T, np.dot(F, K))
 
 	return E, mask
 
@@ -280,7 +279,7 @@ def delaunay(homog_3D, pts_3D, P):
 	# return faces
 
 def gen_pt_cloud(i, prev_sensor, image1, image2):
-	'''Generates a point cloud for a pair of images.'''
+	'''Generates a point cloud for a pair of images. Generated point cloud is on the local coordinate system.'''
 	img1, img2 = load_images(image1, image2)
 	sensor_i, K1, K2 = build_calibration_matrices(i, prev_sensor, image1, image2)
 
@@ -289,7 +288,7 @@ def gen_pt_cloud(i, prev_sensor, image1, image2):
 	src_pts, dst_pts = match_keypoints(kp1, des1, kp2, des2)
 	norm_pts1, norm_pts2 = normalize_pts(K1, K2, src_pts, dst_pts)
 
-	E, mask = find_essential_matrix(norm_pts1, norm_pts2)
+	E, mask = find_essential_matrix(K1, norm_pts1, norm_pts2)
 	P1, P2 = find_projection_matrices(E)
 
 	refined_pts1, refined_pts2 = refine_points(norm_pts1, norm_pts2, E, mask)
@@ -308,8 +307,8 @@ def main():
 	to get the 3D point (as seen by camera 1) and append this point to the overall point cloud.'''
 	# directory = 'images/ucd_building3_all'
 	# images = ['images/ucd_coffeeshack_all/00000000.JPG', 'images/ucd_coffeeshack_all/00000001.JPG']
-	# images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
-	images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg']
+	images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
+	# images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg']
 	# images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
 	prev_sensor = 0
 	# t_matrices = []
@@ -364,7 +363,7 @@ def main():
 	# pt_cloud = np.loadtxt('points/ucd_building4_1-2.txt')
 	# pt_cloud = np.loadtxt('points/alcatraz.txt')
 	# draw.display_pyglet(pt_cloud, colours)
-	# vtk_cloud.vtk_show_points(pt_cloud)
+	vtk_cloud.vtk_show_points(pt_cloud)
 
 
 main()
