@@ -4,6 +4,7 @@ import numpy as np
 from scipy.spatial import Delaunay
 from gi.repository import GExiv2
 import draw, vtk_cloud
+import matplotlib.pyplot as plt
 
 def load_images(filename1, filename2):
 	'''Loads 2 images.'''
@@ -184,12 +185,12 @@ def get_colours(img1, P1, homog_3D):
 	# project 3D points back to the image plane
 	# camera.project returns a 3xN array of homogeneous points --> convert to Nx3 array 
 	camera = draw.Camera(P1)
-	img_pts = camera.project(homog_3D).T
+	img_pts = camera.project(homog_3D)[:2].T
 
 	# extract RGB information and store in new arrays with the coordinates
 	img_colours = np.array([ img1[ pt[1] ][ pt[0] ] for pt in img_pts ])
 
-	return img_colours
+	return img_pts, img_colours
 
 def triangulate_points(P1, P2, refined_pts1, refined_pts2):
 	'''Reconstructs 3D points by triangulation using Direct Linear Transformation.'''
@@ -224,28 +225,38 @@ def triangulate_points(P1, P2, refined_pts1, refined_pts2):
 	# print "selected: P", ind
 	# triangulate inliers and keep only points that are in front of both cameras
 	# homog_3D is a 4xN array of reconstructed points in homogeneous coordinates
-	# pts_3D is a Nx3 array where each N contains an x, y and z-coord
+	# pts_3D is a Nx3 array
 	homog_3D = cv2.triangulatePoints(P1, P2[ind], img1_pts, img2_pts)
 	homog_3D = homog_3D[:, infront]
-	pts_3D = homog_3D / homog_3D[3]
-	pts_3D = np.array(pts_3D[:3]).T
+	homog_3D = homog_3D / homog_3D[3]
+	pts_3D = np.array(homog_3D[:3]).T
 
 	return homog_3D, pts_3D
 
-def delaunay(pts_3D):
+def delaunay(homog_3D, pts_3D, P):
 	'''Delaunay triangulation of 3D points.'''
 	tri = Delaunay(pts_3D)
-	faces = []
-	vertices = tri.vertices
-	for i in xrange(tri.nsimplex):
-		faces.extend([
-			(vertices[i,0], vertices[i,1], vertices[i,2]),
-			(vertices[i,1], vertices[i,3], vertices[i,2]),
-			(vertices[i,0], vertices[i,3], vertices[i,1]),
-			(vertices[i,0], vertices[i,2], vertices[i,3])
-		])
 
-	return faces
+	# project 3D pts back to 2D for plotting in matplotlib
+	camera = draw.Camera(P)
+	proj_pts = camera.project(homog_3D).T
+
+	# plot x-coords, y-coords and simplices
+	plt.triplot(proj_pts[:,0], proj_pts[:,1], tri.simplices.copy())
+	plt.plot(proj_pts[:,0], proj_pts[:,1], 'o')
+	plt.show()
+
+	# faces = []
+	# vertices = tri.vertices
+	# for i in xrange(tri.nsimplex):
+	# 	faces.extend([
+	# 		(vertices[i,0], vertices[i,1], vertices[i,2]),
+	# 		(vertices[i,1], vertices[i,3], vertices[i,2]),
+	# 		(vertices[i,0], vertices[i,3], vertices[i,1]),
+	# 		(vertices[i,0], vertices[i,2], vertices[i,3])
+	# 	])
+
+	# return faces
 
 def gen_pt_cloud(i, prev_sensor, image1, image2):
 	'''Generates a point cloud for every pair of images.'''
@@ -262,64 +273,78 @@ def gen_pt_cloud(i, prev_sensor, image1, image2):
 
 	refined_pts1, refined_pts2 = refine_points(norm_pts1, norm_pts2, E, mask)
 	homog_3D, pts_3D = triangulate_points(P1, P2, refined_pts1, refined_pts2)
-	img_colours = get_colours(img1, P1, homog_3D)
+	delaunay(homog_3D, pts_3D, P1)
 
-	return sensor_i, E, P1, homog_3D, pts_3D, img_colours
+	img_pts, img_colours = get_colours(img1, P1, homog_3D)
+
+	return sensor_i, K1, P1, homog_3D, pts_3D, img_pts, img_colours
 
 
 
 def main():
 	'''Loop through each pair of images, find point correspondences and generate 3D point cloud.
-	Multiply each point in each new point cloud by all the essential matrix inverses up to that point 
+	Multiply each point cloud by the 4x4 transformation matrix up to that point 
 	to get the 3D point (as seen by camera 1) and append this point to the overall point cloud.'''
-	directory = 'images/ucd_building4_all'
+	# directory = 'images/ucd_building3_all'
 	# directory = 'images/ucd_coffeeshack_all'
 	# images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
-	# images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg', 'images/ucd_building4_all/00000002.jpg', 'images/ucd_building4_all/00000003.jpg']
+	images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg', 'images/ucd_building4_all/00000002.jpg', 'images/ucd_building4_all/00000003.jpg']
 	# images = ['images/Merton1/001.jpg', 'images/Merton1/002.jpg']
-	images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
-	E_matrices = []
-	proj_matrices = []
+	# images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
 	prev_sensor = 0
+	t_matrices = []
+
 
 	for i in range(len(images)-1):
 		print "Processing ", images[i].split('/')[2], "and ", images[i+1].split('/')[2]
-		prev_sensor, E,  P, homog_3D, pts_3D, img_colours = gen_pt_cloud(i, prev_sensor, images[i], images[i+1])
-		E_matrices.append(E)
-		proj_matrices.append(P)
+		prev_sensor, K, P, homog_3D, pts_3D, img_pts, img_colours = gen_pt_cloud(i, prev_sensor, images[i], images[i+1])
 
 		if i == 0:
 			# first 2 images
-			print pts_3D
 			pt_cloud = np.array(pts_3D)
 			colours = np.array(img_colours)
+			# cam_poses.append(np.eye(4))
 
 		elif i >= 1:
-			# j keeps track of the essential matrix to be inversed
-			for j in reversed(range(i)):
-				print "Multiplying the inverse of E_matrices[%s] to each pt" % j
-				pts_3D = np.array([ np.dot(np.linalg.inv(proj_matrices[j][:,:3]), pt.T).T for pt in pts_3D ])
-				print pts_3D
-				# pts_3D = np.array([ np.dot(pt, np.linalg.inv(E_matrices[j])) for pt in pts_3D ])
+			print "i: ", i
 
-			print "pt_cloud shape: ", pt_cloud.shape
-			print "pts_3D shape: ", pts_3D.shape
-			pt_cloud = np.vstack((pt_cloud, pts_3D))
-			colours = np.vstack((colours, img_colours))
+			r_t = np.vstack((np.dot(np.linalg.inv(K), P), np.array([0,0,0,1])))
+			print "r_t: ", r_t
 
-			print "pt_cloud: ", pt_cloud.shape
-			print "colours: ", colours.shape
+			# transform the 3D point set so that it is viewed from camera 1
+			# get the matrix that transforms camera --> object coordinate system?
+			# tvec is the position of the world origin in camera coords
+			rvec, tvec = cv2.solvePnP(pts_3D, img_pts, K, None)[1:3]
+			# print "rvec: ", rvec
+			# print "tvec: ", tvec
+			t = np.vstack((np.hstack((cv2.Rodrigues(rvec)[0], tvec)), np.array([0,0,0,1])))
+			print "t :", t
+			# t_matrices.append(t)
+			# print "# t_matrices: ", range(len(t_matrices))
+
+			# transform the 3D points using the camera pose; homog_3D remains a 4xN array
+			# for j in reversed(range(i)):
+			# 	print "multiplying with cam_poses[",j,"]"			
+			# 	homog_3D = np.array([ np.dot(np.linalg.inv(t_matrices[j]), homog_3D) ])[0]
+
+			# pts_3D = homog_3D[:3].T
+			# print "pt_cloud shape: ", pt_cloud.shape
+			# print "homog_3D shape: ", pts_3D.shape
+			# pt_cloud = np.vstack((pt_cloud, pts_3D))
+			# colours = np.vstack((colours, img_colours))
+
+			# print "pt_cloud: ", pt_cloud.shape
+			# print "colours: ", colours.shape
 		 
 	# homog_pt_cloud = np.vstack((pt_cloud.T, np.ones(pt_cloud.shape[0])))
-	# faces = delaunay(pts_3D)
 
 	# draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
 	# draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
 	# draw.draw_projected_points(homog_pt_cloud, P)
-	np.savetxt('ucd_building4_all.txt', [pt for pt in pt_cloud])
+	# np.savetxt('ucd_building4_all.txt', [pt for pt in pt_cloud])
 	# pt_cloud = np.loadtxt('ucd_building4_all.txt')
 	# draw.display_pyglet(pt_cloud, colours)
-	vtk_cloud.vtk_show_points(pt_cloud)
+	# vtk_cloud.vtk_show_points(pt_cloud)
 
 
 main()
