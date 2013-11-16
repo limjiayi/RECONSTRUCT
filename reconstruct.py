@@ -1,10 +1,12 @@
-import os
+import os, sys
 import cv2
 import numpy as np
 from scipy.spatial import Delaunay
 from gi.repository import GExiv2
 import draw, vtk_cloud
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3D import Axes3D
+from mpl_toolkits.mplot3D import Poly3DCollection
 
 def load_images(filename1, filename2):
 	'''Loads 2 images.'''
@@ -53,7 +55,7 @@ def build_calibration_matrices(i, prev_sensor, filename1, filename2):
 			print "Exif data not available for ", filename1
 		if metadata2.get_supports_exif() == False:
 			print "Exif data not available for ", filename2
-		return None
+		sys.exit("Please try again.")
 
 	# Calibration matrix for camera 1 (K1)
 	f1_mm = metadata1.get_focal_length()
@@ -238,6 +240,8 @@ def delaunay(homog_3D, pts_3D, P):
 	tetra = Delaunay(pts_3D)
 	print "tetra simplices: \n", tetra.simplices
 	print "tetra # simplices: ", tetra.nsimplex
+	print "tetra neighbors: \n", tetra.neighbors
+	print "tetra.neighbors[1,0]: ", tetra.neighbors[1,:] # 1st simplex
 
 	# # project 3D pts back to 2D for plotting in matplotlib
 	# camera = draw.Camera(P)
@@ -248,15 +252,29 @@ def delaunay(homog_3D, pts_3D, P):
 	# plt.plot(proj_pts[:,0], proj_pts[:,1], 'o')
 	# plt.show()
 
-	faces = []
-	vertices = tetra.vertices
+	faces = set()
+
+	def add_face(v1, v2, v3):
+		face_vertices = [v1, v2, v3]
+
+		for vertex in face_vertices:
+			_min = min(face_vertices)
+			_max = max(face_vertices)
+
+		if set([ face_vertices.index(_min), face_vertices.index(_max) ]) == set([0,1]):
+			_mid = face_vertices[2]
+		elif set([ face_vertices.index(_min), face_vertices.index(_max) ]) == set([1,2]):
+			_mid = face_vertices[0]
+		else:
+			_mid = face_vertices[1]
+
+		faces.add( (_min, _mid, _max) )
+
 	for i in xrange(tetra.nsimplex):
-		faces.extend([
-			(vertices[i,0], vertices[i,1], vertices[i,2]),
-			(vertices[i,1], vertices[i,3], vertices[i,2]),
-			(vertices[i,0], vertices[i,3], vertices[i,1]),
-			(vertices[i,0], vertices[i,2], vertices[i,3])
-		])
+		add_face(tetra.simplices[i,0], tetra.simplices[i,1], tetra.simplices[i,2])
+		add_face(tetra.simplices[i,1], tetra.simplices[i,3], tetra.simplices[i,2])
+		add_face(tetra.simplices[i,0], tetra.simplices[i,3], tetra.simplices[i,1])
+		add_face(tetra.simplices[i,0], tetra.simplices[i,2], tetra.simplices[i,3])
 
 	print "# faces: ", len(faces)
 	# return faces
