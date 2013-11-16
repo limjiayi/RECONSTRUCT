@@ -234,32 +234,35 @@ def triangulate_points(P1, P2, refined_pts1, refined_pts2):
 	return homog_3D, pts_3D
 
 def delaunay(homog_3D, pts_3D, P):
-	'''Delaunay triangulation of 3D points.'''
-	tri = Delaunay(pts_3D)
+	'''Delaunay triangulation of 3D points. Each element is a tetrahedron.'''
+	tetra = Delaunay(pts_3D)
+	print "tetra simplices: \n", tetra.simplices
+	print "tetra # simplices: ", tetra.nsimplex
 
-	# project 3D pts back to 2D for plotting in matplotlib
-	camera = draw.Camera(P)
-	proj_pts = camera.project(homog_3D).T
+	# # project 3D pts back to 2D for plotting in matplotlib
+	# camera = draw.Camera(P)
+	# proj_pts = camera.project(homog_3D).T
 
-	# plot x-coords, y-coords and simplices
-	plt.triplot(proj_pts[:,0], proj_pts[:,1], tri.simplices.copy())
-	plt.plot(proj_pts[:,0], proj_pts[:,1], 'o')
-	plt.show()
+	# # plot x-coords, y-coords and simplices
+	# plt.triplot(proj_pts[:,0], proj_pts[:,1], tetra.simplices)
+	# plt.plot(proj_pts[:,0], proj_pts[:,1], 'o')
+	# plt.show()
 
-	# faces = []
-	# vertices = tri.vertices
-	# for i in xrange(tri.nsimplex):
-	# 	faces.extend([
-	# 		(vertices[i,0], vertices[i,1], vertices[i,2]),
-	# 		(vertices[i,1], vertices[i,3], vertices[i,2]),
-	# 		(vertices[i,0], vertices[i,3], vertices[i,1]),
-	# 		(vertices[i,0], vertices[i,2], vertices[i,3])
-	# 	])
+	faces = []
+	vertices = tetra.vertices
+	for i in xrange(tetra.nsimplex):
+		faces.extend([
+			(vertices[i,0], vertices[i,1], vertices[i,2]),
+			(vertices[i,1], vertices[i,3], vertices[i,2]),
+			(vertices[i,0], vertices[i,3], vertices[i,1]),
+			(vertices[i,0], vertices[i,2], vertices[i,3])
+		])
 
+	print "# faces: ", len(faces)
 	# return faces
 
 def gen_pt_cloud(i, prev_sensor, image1, image2):
-	'''Generates a point cloud for every pair of images.'''
+	'''Generates a point cloud for a pair of images.'''
 	img1, img2 = load_images(image1, image2)
 	sensor_i, K1, K2 = build_calibration_matrices(i, prev_sensor, image1, image2)
 
@@ -286,13 +289,12 @@ def main():
 	Multiply each point cloud by the 4x4 transformation matrix up to that point 
 	to get the 3D point (as seen by camera 1) and append this point to the overall point cloud.'''
 	# directory = 'images/ucd_building3_all'
-	# directory = 'images/ucd_coffeeshack_all'
+	# images = ['images/ucd_coffeeshack_all/00000000.JPG', 'images/ucd_coffeeshack_all/00000001.JPG']
 	# images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
-	images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg', 'images/ucd_building4_all/00000002.jpg', 'images/ucd_building4_all/00000003.jpg']
-	# images = ['images/Merton1/001.jpg', 'images/Merton1/002.jpg']
+	images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg']
 	# images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
 	prev_sensor = 0
-	t_matrices = []
+	# t_matrices = []
 
 
 	for i in range(len(images)-1):
@@ -303,22 +305,21 @@ def main():
 			# first 2 images
 			pt_cloud = np.array(pts_3D)
 			colours = np.array(img_colours)
-			# cam_poses.append(np.eye(4))
 
-		elif i >= 1:
-			print "i: ", i
+	# 	elif i >= 1:
+	# 		print "i: ", i
 
-			r_t = np.vstack((np.dot(np.linalg.inv(K), P), np.array([0,0,0,1])))
-			print "r_t: ", r_t
+	# 		r_t = np.vstack((np.dot(np.linalg.inv(K), P), np.array([0,0,0,1])))
+	# 		print "r_t: ", r_t
 
 			# transform the 3D point set so that it is viewed from camera 1
 			# get the matrix that transforms camera --> object coordinate system?
 			# tvec is the position of the world origin in camera coords
-			rvec, tvec = cv2.solvePnP(pts_3D, img_pts, K, None)[1:3]
+			# rvec, tvec = cv2.solvePnP(pts_3D, img_pts, K, None)[1:3]
 			# print "rvec: ", rvec
 			# print "tvec: ", tvec
-			t = np.vstack((np.hstack((cv2.Rodrigues(rvec)[0], tvec)), np.array([0,0,0,1])))
-			print "t :", t
+			# t = np.vstack((np.hstack((cv2.Rodrigues(rvec)[0], tvec)), np.array([0,0,0,1])))
+			# print "t :", t
 			# t_matrices.append(t)
 			# print "# t_matrices: ", range(len(t_matrices))
 
@@ -341,8 +342,9 @@ def main():
 	# draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
 	# draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
 	# draw.draw_projected_points(homog_pt_cloud, P)
-	# np.savetxt('ucd_building4_all.txt', [pt for pt in pt_cloud])
-	# pt_cloud = np.loadtxt('ucd_building4_all.txt')
+	# np.savetxt('points/ucd_coffeeshack_1-2.txt', [pt for pt in pt_cloud])
+	# pt_cloud = np.loadtxt('points/ucd_building4_1-2.txt')
+	# pt_cloud = np.loadtxt('points/alcatraz.txt')
 	# draw.display_pyglet(pt_cloud, colours)
 	# vtk_cloud.vtk_show_points(pt_cloud)
 
