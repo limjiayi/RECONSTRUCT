@@ -225,17 +225,21 @@ def triangulate_points(P1, P2, refined_pts1, refined_pts2):
 
 def delaunay(homog_3D, pts_3D):
 	'''Delaunay tetrahedralization of 3D points.'''
-	
+	x, y, z = pts_3D.T[0], pts_3D.T[1], pts_3D.T[2]
+	x_med, y_med, z_med = np.median(x), np.median(y), np.median(z)
+	x_std, y_std, z_std = np.std(x), np.std(y), np.std(z)
+
 	def remove_outliers(pts_3D):
 		'''Remove points that are too far away from the median.'''
 		x, y, z = pts_3D.T[0], pts_3D.T[1], pts_3D.T[2]
 		x_med, y_med, z_med = np.median(x), np.median(y), np.median(z)
 		x_std, y_std, z_std = np.std(x), np.std(y), np.std(z)
+		N = 1 # number of std devs
 		print "medians: ", x_med, y_med, z_med
 		print "std devs: ", x_std, y_std, z_std
-		x_mask = [ True if ( x_med - 1 * x_std < coord < x_med + 1 * x_std) else False for coord in x ]
-		y_mask = [ True if ( y_med - 1 * y_std < coord < y_med + 1 * y_std) else False for coord in y ]
-		z_mask = [ True if ( z_med - 1 * z_std < coord < z_med + 1 * z_std) else False for coord in z ]
+		x_mask = [ True if ( x_med - N*x_std < coord < x_med + N*x_std) else False for coord in x ]
+		y_mask = [ True if ( y_med - N*y_std < coord < y_med + N*y_std) else False for coord in y ]
+		z_mask = [ True if ( z_med - N*z_std < coord < z_med + N*z_std) else False for coord in z ]
 		mask = [ all(tup) for tup in zip(x_mask, y_mask, z_mask) ]
 		
 		count = 0
@@ -249,41 +253,57 @@ def delaunay(homog_3D, pts_3D):
 
 		return pts_3D
 	
-	filtered_pts = remove_outliers(pts_3D)
-
-	tetra = Delaunay(pts_3D)
-	print tetra.nsimplex
-	# # project 3D pts back to 2D for plotting in matplotlib
-	# camera = draw.Camera(P)
-	# proj_pts = camera.project(homog_3D).T
-
-	# # plot x-coords, y-coords and simplices
-	# plt.triplot(proj_pts[:,0], proj_pts[:,1], tetra.simplices)
-	# plt.plot(proj_pts[:,0], proj_pts[:,1], 'o')
-	# plt.show()
-
-	faces = set()
-
 	def add_face(v1, v2, v3):
 		'''Makes sure the indices stored in each face is always in the order small --> large.'''
 		face_vertices = [v1, v2, v3]
 
-		for vertex in face_vertices:
-			_min = min(face_vertices)
-			_max = max(face_vertices)
+		if valid_face(v1, v2, v3):
+			for vertex in face_vertices:
+				_min = min(face_vertices)
+				_max = max(face_vertices)
 
-		if set([ face_vertices.index(_min), face_vertices.index(_max) ]) == set([0,1]):
-			_mid = face_vertices[2]
-		elif set([ face_vertices.index(_min), face_vertices.index(_max) ]) == set([1,2]):
-			_mid = face_vertices[0]
-		else:
-			_mid = face_vertices[1]
+			if set([ face_vertices.index(_min), face_vertices.index(_max) ]) == set([0,1]):
+				_mid = face_vertices[2]
+			elif set([ face_vertices.index(_min), face_vertices.index(_max) ]) == set([1,2]):
+				_mid = face_vertices[0]
+			else:
+				_mid = face_vertices[1]
 
-		faces.add( (_min, _mid, _max) )
+			faces.add( (_min, _mid, _max) )
+
+	def valid_face(v1, v2, v3):
+		'''Returns False if any vertex coordinate in the face is further by more than 1 std dev from
+		the corresponding coordinates of the other vertices, else returns True.'''
+		x_vals = zip(v1, v2, v3)[0]
+		y_vals = zip(v1, v2, v3)[1]
+		z_vals = zip(v1, v2, v3)[2]
+		N = 1 # number of std devs
+
+		for i in range(len(x_vals)):
+			for j in range(i+1,len(x_vals)):
+				if x_vals[j] > x_vals[i] + N*x_std or x_vals[j] < x_vals[i] - N*x_std:
+					return False
+
+		for i in range(len(y_vals)):
+			for j in range(i+1,len(y_vals)):
+				if y_vals[j] > y_vals[i] + N*y_std or y_vals[j] < y_vals[i] - N*y_std:
+					return False
+
+		for i in range(len(z_vals)):
+			for j in range(i+1,len(z_vals)):
+				if z_vals[j] > z_vals[i] + N*z_std or z_vals[j] < z_vals[i] - N*z_std:
+					return False
+
+		return True
+
+	filtered_pts = remove_outliers(pts_3D)
+	tetra = Delaunay(pts_3D)
+	print tetra.nsimplex
+	faces = set()
 
 	for i in xrange(tetra.nsimplex):
 		# tetra.simplices is a Nx4 array. Each row contains the indices of points that make up a tetrahedron
-		# each face added is a tuple containing the indices of the points that make up that face 
+		# each face added is a tuple containing the indices of the points that make up that face
 		add_face(tetra.simplices[i,0], tetra.simplices[i,1], tetra.simplices[i,2])
 		add_face(tetra.simplices[i,1], tetra.simplices[i,3], tetra.simplices[i,2])
 		add_face(tetra.simplices[i,0], tetra.simplices[i,3], tetra.simplices[i,1])
@@ -291,8 +311,6 @@ def delaunay(homog_3D, pts_3D):
 
 	print "# faces: ", len(faces)
 	faces = list(faces)
-
-	# draw.draw_mesh(pts_3D,faces)
 
 	# points
 	points = np.array([ pts_3D[vertex] for face in faces for vertex in face ])
