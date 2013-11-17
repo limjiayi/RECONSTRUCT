@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 from scipy.spatial import Delaunay
 from gi.repository import GExiv2
-import draw, vtk_cloud
+import draw, vtk_cloud, model
 import matplotlib.pyplot as plt
 
 def load_images(filename1, filename2):
@@ -27,8 +27,7 @@ def build_calibration_matrices(i, prev_sensor, filename1, filename2):
 		return True
 
 	def get_sensor_sizes(i, prev_sensor, metadata1, metadata2):
-		'''Displays camera model based on EXIF data.
-		Gets user's input on the width of the camera's sensor.'''
+		'''Displays camera model based on EXIF data. Gets user's input on the width of the camera's sensor.'''
 		# focal length in pixels = (image width in pixels) * (focal length in mm) / (CCD width in mm)
 		if i == 0:
 			print "Camera %s is a %s." % (str(i+1), metadata1['Exif.Image.Model'])
@@ -203,27 +202,17 @@ def triangulate_points(P1, P2, refined_pts1, refined_pts2):
 	ind = 0
 	maxres = 0
 	for i in range(4):
-		# print "P", i
 		# triangulate inliers and compute depth for each camera
 		homog_3D = cv2.triangulatePoints(P1, P2[i], img1_pts, img2_pts)
 		# the sign of the depth is the 3rd value of the image point after projecting back to the image
-		# i.e. the z-value?
 		d1 = np.dot(P1, homog_3D)[2]
-		# print "num pts: ", np.dot(P1, homog_3D).shape[1]
 		d2 = np.dot(P2[i], homog_3D)[2]
 		
-		# num_true = 0
-		# for item in (d1 > 0) & (d2 < 0):
-		# 	if item == True:
-		# 		num_true += 1
-		# print "pts in front: ", num_true
-
 		if sum(d1 > 0) + sum(d2 < 0) > maxres:
 			maxres = sum(d1 > 0) + sum(d2 < 0)
 			ind = i
 			infront = (d1 > 0) & (d2 < 0)
 
-	# print "selected: P", ind
 	# triangulate inliers and keep only points that are in front of both cameras
 	# homog_3D is a 4xN array of reconstructed points in homogeneous coordinates
 	# pts_3D is a Nx3 array
@@ -234,14 +223,36 @@ def triangulate_points(P1, P2, refined_pts1, refined_pts2):
 
 	return homog_3D, pts_3D
 
-def delaunay(homog_3D, pts_3D, P):
-	'''Delaunay triangulation of 3D points. Each element is a tetrahedron.'''
-	tetra = Delaunay(pts_3D)
-	print "tetra simplices: \n", tetra.simplices
-	print "tetra # simplices: ", tetra.nsimplex
-	print "tetra neighbors: \n", tetra.neighbors
-	print "tetra.neighbors[1,0]: ", tetra.neighbors[1,:] # 1st simplex
+def delaunay(homog_3D, pts_3D):
+	'''Delaunay tetrahedralization of 3D points.'''
+	
+	def remove_outliers(pts_3D):
+		'''Remove points that are too far away from the median.'''
+		x, y, z = pts_3D.T[0], pts_3D.T[1], pts_3D.T[2]
+		x_med, y_med, z_med = np.median(x), np.median(y), np.median(z)
+		x_std, y_std, z_std = np.std(x), np.std(y), np.std(z)
+		print "medians: ", x_med, y_med, z_med
+		print "std devs: ", x_std, y_std, z_std
+		x_mask = [ True if ( x_med - 1 * x_std < coord < x_med + 1 * x_std) else False for coord in x ]
+		y_mask = [ True if ( y_med - 1 * y_std < coord < y_med + 1 * y_std) else False for coord in y ]
+		z_mask = [ True if ( z_med - 1 * z_std < coord < z_med + 1 * z_std) else False for coord in z ]
+		mask = [ all(tup) for tup in zip(x_mask, y_mask, z_mask) ]
+		
+		count = 0
+		for _bool in mask:
+			if _bool:
+				count += 1
+		print count
 
+		pts_3D = [ pt[0] for pt in zip(pts_3D, mask) if pt[1] ]
+		print len(pts_3D)
+
+		return pts_3D
+	
+	filtered_pts = remove_outliers(pts_3D)
+
+	tetra = Delaunay(pts_3D)
+	print tetra.nsimplex
 	# # project 3D pts back to 2D for plotting in matplotlib
 	# camera = draw.Camera(P)
 	# proj_pts = camera.project(homog_3D).T
@@ -254,6 +265,7 @@ def delaunay(homog_3D, pts_3D, P):
 	faces = set()
 
 	def add_face(v1, v2, v3):
+		'''Makes sure the indices stored in each face is always in the order small --> large.'''
 		face_vertices = [v1, v2, v3]
 
 		for vertex in face_vertices:
@@ -270,12 +282,30 @@ def delaunay(homog_3D, pts_3D, P):
 		faces.add( (_min, _mid, _max) )
 
 	for i in xrange(tetra.nsimplex):
+		# tetra.simplices is a Nx4 array. Each row contains the indices of points that make up a tetrahedron
+		# each face added is a tuple containing the indices of the points that make up that face 
 		add_face(tetra.simplices[i,0], tetra.simplices[i,1], tetra.simplices[i,2])
 		add_face(tetra.simplices[i,1], tetra.simplices[i,3], tetra.simplices[i,2])
 		add_face(tetra.simplices[i,0], tetra.simplices[i,3], tetra.simplices[i,1])
 		add_face(tetra.simplices[i,0], tetra.simplices[i,2], tetra.simplices[i,3])
 
 	print "# faces: ", len(faces)
+	faces = list(faces)
+
+	# draw.draw_mesh(pts_3D,faces)
+
+	# points
+	points = np.array([ pts_3D[vertex] for face in faces for vertex in face ])
+	print points.shape
+
+	# triangles
+	faces = np.array(faces)
+	triangles = faces
+	print triangles.shape
+
+	actor = vtk_cloud.vtk_triangles(points, triangles)
+	vtk_cloud.vtk_basic([actor])
+	# vtk_cloud.vtk_show_points(pts_3D)
 	# return faces
 
 def gen_pt_cloud(i, prev_sensor, image1, image2):
@@ -293,7 +323,7 @@ def gen_pt_cloud(i, prev_sensor, image1, image2):
 
 	refined_pts1, refined_pts2 = refine_points(norm_pts1, norm_pts2, E, mask)
 	homog_3D, pts_3D = triangulate_points(P1, P2, refined_pts1, refined_pts2)
-	delaunay(homog_3D, pts_3D, P1)
+	delaunay(homog_3D, pts_3D)
 
 	img_pts, img_colours = get_colours(img1, P1, homog_3D)
 
@@ -307,21 +337,21 @@ def main():
 	to get the 3D point (as seen by camera 1) and append this point to the overall point cloud.'''
 	# directory = 'images/ucd_building3_all'
 	# images = ['images/ucd_coffeeshack_all/00000000.JPG', 'images/ucd_coffeeshack_all/00000001.JPG']
-	images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
+	# images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
 	# images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg']
 	# images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
-	prev_sensor = 0
+	# prev_sensor = 0
 	# t_matrices = []
 
 
-	for i in range(len(images)-1):
-		print "Processing ", images[i].split('/')[2], "and ", images[i+1].split('/')[2]
-		prev_sensor, K, P, homog_3D, pts_3D, img_pts, img_colours = gen_pt_cloud(i, prev_sensor, images[i], images[i+1])
+	# for i in range(len(images)-1):
+	# 	print "Processing ", images[i].split('/')[2], "and ", images[i+1].split('/')[2]
+	# 	prev_sensor, K, P, homog_3D, pts_3D, img_pts, img_colours = gen_pt_cloud(i, prev_sensor, images[i], images[i+1])
 
-		if i == 0:
-			# first 2 images
-			pt_cloud = np.array(pts_3D)
-			colours = np.array(img_colours)
+	# 	if i == 0:
+	# 		# first 2 images
+	# 		pt_cloud = np.array(pts_3D)
+	# 		colours = np.array(img_colours)
 
 	# 	elif i >= 1:
 	# 		print "i: ", i
@@ -359,11 +389,16 @@ def main():
 	# draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
 	# draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
 	# draw.draw_projected_points(homog_pt_cloud, P)
+	# np.savetxt('points/homog_3D.txt', [pt for pt in homog_3D])
 	# np.savetxt('points/ucd_coffeeshack_1-2.txt', [pt for pt in pt_cloud])
 	# pt_cloud = np.loadtxt('points/ucd_building4_1-2.txt')
 	# pt_cloud = np.loadtxt('points/alcatraz.txt')
 	# draw.display_pyglet(pt_cloud, colours)
-	vtk_cloud.vtk_show_points(pt_cloud)
+	# vtk_cloud.vtk_show_points(pt_cloud)
 
 
-main()
+# main()
+
+homog_3D = np.loadtxt('points/homog_3D.txt')
+pts_3D = np.loadtxt('points/alcatraz.txt')
+delaunay(homog_3D, pts_3D)

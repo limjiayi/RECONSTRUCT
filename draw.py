@@ -3,6 +3,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from pylab import *
 from scipy import linalg
+from mayavi import mlab
 
 def draw_matches(src_pts, dst_pts, img1, img2):
 	'''Places the 2 images side-by-side and draws lines between matching keypoints.'''
@@ -63,46 +64,12 @@ class Camera(object):
 		self.c = None # camera center
 
 	def project(self, X):
-		"""Project points in X (4*n array) and normalize coordinates."""
+		"""Project points in X (4xN array) and return 3xN 2D normalized coordinates."""
 
 		x = dot(self.P, X)
 		for i in range(3):
 			x[i] /= x[2]
 		return x
-
-	def rotation_matrix(a):
-		"""Creates a 3D rotation matrix for rotation around the axis of the vector a."""
-		R = eye(4)
-		R[:3,:3] = linalg.expm([[0,-a[2],a[1]], [a[2],0,-a[0]], [-a[1],a[0],0]])
-		return R
-
-	def factor(self):
-		"""Factorize the camera matrix into K, R, t where P = K[R|t]."""
-
-		# factor first 3*3 part
-		K, R = linalg.rq(self.P[:,:3])
-
-		# make diagonal of K positive
-		T = diag(sign(diag(K)))
-		if linalg.det(T) < 0:
-			T[1,1] *= -1
-
-		self.K = dot(K,T)
-		self.R = dot(T,R) # T is its own inverse
-		self.t = dot(linalg.inv(self.K), self.P[:,3])
-
-		return self.K, self.R, self.t
-
-	def center(self):
-		"""Compute and return the camera center."""
-
-		if self.c is not None:
-			return self.c
-		else:
-			# compute c by factoring
-			self.factor()
-			self.c = -dot(self.R.T, self.t)
-			return self.c
 
 def draw_projected_points(homog_3D, P):
 	# setup camera
