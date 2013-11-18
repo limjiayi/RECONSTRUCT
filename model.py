@@ -1,31 +1,35 @@
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import create_engine, Column, Integer, String, Date, ForeignKey
+from sqlalchemy import create_engine, Table, Column, Integer, String, Float, Date, ForeignKey, MetaData
 from sqlalchemy.orm import sessionmaker, scoped_session, relationship, backref
 
-ENGINE = create_engine("sqlite:///cameras.db", echo=False)
-db_session = scoped_session(sessionmaker(bind=ENGINE, autocommit=False, autoflush=False))
 Base = declarative_base()
-Base.query = db_session.query_property()
 
-class Cameras(Base):
-    __tablename__ = "Cameras"
+ENGINE = create_engine("postgresql+psycopg2://user:user@localhost:5432/user", echo=False)
+Session = sessionmaker(bind=ENGINE)
+session = Session()
+metadata = MetaData()
+metadata.bind = ENGINE
+
+cameras_table = Table('cameras', metadata,
+          Column('id', Integer, primary_key=True),
+          Column('model', String),
+          Column('sensor_width', Float))
+
+cameras_table.create(checkfirst=True)
+
+class Camera(Base):
+    __tablename__ = "cameras"
 
     id = Column(Integer, primary_key=True)
     model = Column(String(64), nullable=False)
-    sensor_width = Column(String(5), nullable=False)
+    sensor_width = Column(Float, nullable=False)
 
 def add_camera(model, sensor_width):
-    new_camera = Cameras(model=model, sensor_width=sensor_width)
-    db_session.add(new_camera)
-    db_session.commit()
-    db_session.refresh(new_camera)
+    new_camera = Camera(model=model, sensor_width=sensor_width)
+    session.add(new_camera)
+    session.commit()
+    session.refresh(new_camera)
 
 def get_sensor_size(model):
-    sensor_width = db_session.query(Cameras).filter_by(model=model)
-    return sensor_width
-
-def main():
-    pass
-
-if __name__ == "__main__":
-    main()
+    rows = session.query(Camera).filter_by(model=model).one()
+    return rows.sensor_width
