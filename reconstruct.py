@@ -20,7 +20,7 @@ def build_calibration_matrices(i, prev_sensor, filename1, filename2):
     '''Extract exif metadata from image files, and use them to build the 2 calibration matrices.'''
 
     def get_sensor_sizes(i, prev_sensor, metadata1, metadata2):
-        '''Displays camera model based on EXIF data. Gets user's input on the width of the camera's sensor.'''
+        '''Looks up sensor width from the database based on the camera model.'''
         # focal length in pixels = (image width in pixels) * (focal length in mm) / (CCD width in mm)
         if i == 0:
         	sensor_1 = model.get_sensor_size(metadata1['Exif.Image.Model'].upper())
@@ -69,18 +69,20 @@ def gray_images(img1, img2):
 
     return img1_gray, img2_gray
 
-def find_keypoints_descriptors(img1, img2):
+def find_keypoints_descriptors(img):
     '''Detects keypoints and computes their descriptors.'''
     # initiate detector
     detector = cv2.SURF()
 
     # find the keypoints and descriptors
-    kp1, des1 = detector.detectAndCompute(img1, None)
-    kp2, des2 = detector.detectAndCompute(img2, None)
+    kp, des = detector.detectAndCompute(img, None)
+    # print dir(des1)
 
-    return kp1, des1, kp2, des2
+    return kp, des
 
 def match_keypoints(kp1, des1, kp2, des2):
+    print "# keypoints: ", len(kp1), len(kp2)
+    print "# descriptors: ", len(des1), len(des2)
     '''Matches the descriptors in one image with those in the second image using
     the Fast Library for Approximate Nearest Neighbours (FLANN) matcher.'''
     MIN_MATCH_COUNT = 10
@@ -92,6 +94,9 @@ def match_keypoints(kp1, des1, kp2, des2):
 
     flann = cv2.FlannBasedMatcher(index_params,search_params)
     matches = flann.knnMatch(np.asarray(des1, np.float32), np.asarray(des2, np.float32), k=2)
+    print "# matches: ", len(matches), matches[0][0].queryIdx, matches[0][0].trainIdx
+    print "# matches: ", len(matches), matches[1][0].queryIdx, matches[1][0].trainIdx
+    # print dir(matches[0][0])
 
     # store all the good matches as per Lowe's ratio test
     good_matches = []
@@ -102,11 +107,16 @@ def match_keypoints(kp1, des1, kp2, des2):
     if len(good_matches) > MIN_MATCH_COUNT:
         src_pts = np.float32([ kp1[m.queryIdx].pt for m in good_matches ]).reshape(-1,1,2)
         dst_pts = np.float32([ kp2[m.trainIdx].pt for m in good_matches ]).reshape(-1,1,2)
+        # filtered keypoints are lists containing the indices into the keypoints and descriptors
+        filtered_kp1 = np.array([ m.queryIdx for m in good_matches ])
+        filtered_kp2 = np.array([ m.trainIdx for m in good_matches ])
+        print "# filtered kps: ", filtered_kp1.shape, filtered_kp2.shape
+
     else:
         print "Not enough matches were found - %d/%d" % (len(good_matches), MIN_MATCH_COUNT)
 
     # src_pts and dst_pts are Nx1x2 arrays that contain the x and y coordinates
-    return src_pts, dst_pts
+    return src_pts, dst_pts, filtered_kp1, filtered_kp2
 
 def normalize_pts(K1, K2, src_pts, dst_pts):
     # convert to 3xN arrays by making the points homogeneous
@@ -133,11 +143,19 @@ def find_essential_matrix(K, norm_pts1, norm_pts2):
 
     return E, mask
 
-def find_projection_matrices(E):
+def find_projection_matrices(E, poses):
     '''Compute the second camera matrix (assuming the first camera matrix = [I 0]).
     Output is a list of 4 possible camera matrices for P2.'''
-    # the first camera matrix is assumed to be the identity matrix
-    P1 = np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)
+    # the first camera matrix is assumed to be the identity matrix for the first image,
+    # or the pose of the camera for the second and subsequent images
+    if len(poses) == 0:
+        P1 = np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)
+    elif len(poses) >= 1:
+        P1 = np.array([[0,0,0,0], [0,0,0,0], [0,0,0,0]], dtype=float)
+        for i in (range(len(poses)-1)):
+            print type(poses[i-1])#.shape
+            print type(P1), P1.shape
+            P1 = poses[i-1] + P1
 
     # make sure E is rank 2
     U, S, V = np.linalg.svd(E)
@@ -156,44 +174,38 @@ def find_projection_matrices(E):
 
     return P1, P2
 
-def refine_points(norm_pts1, norm_pts2, E, mask):
+def refine_points(norm_pts1, norm_pts2, E, mask, filtered_kp1, filtered_kp2):
     '''Refine the coordinates of the corresponding points using the Optimal Triangulation Method.'''
+    # filtered_kp are lists containing the indices into the keypoints and descriptors
+    filtered_kp1 = filtered_kp1[mask.ravel()==1]
+    filtered_kp2 = filtered_kp2[mask.ravel()==1]
+    print "# filtered after mask: ", len(filtered_kp1), len(filtered_kp2)
+
     # select only inlier points
     norm_pts1 = norm_pts1[mask.ravel()==1]
     norm_pts2 = norm_pts2[mask.ravel()==1]
+    print "# norm pts: ", norm_pts1.shape, norm_pts2.shape
 
     # convert to 1xNx2 arrays for cv2.correctMatches
     refined_pts1 = np.array([ [pt[0] for pt in norm_pts1 ] ])
     refined_pts2 = np.array([ [pt[0] for pt in norm_pts2 ] ])
     refined_pts1, refined_pts2 = cv2.correctMatches(E, refined_pts1, refined_pts2)
 
-    # outputs are also 1xNx2 arrays
-    return refined_pts1, refined_pts2
-
-def get_colours(img1, P1, homog_3D, K1, norm_pts1):
-    '''Extract RGB data from the original images and store them in new arrays.'''
-    # get the original x and y image coords
-    norm_pts1 = np.array([ pt[0] for pt in norm_pts1 ])
-    norm_pts1 = np.vstack((norm_pts1.T, np.ones(norm_pts1.shape[0])))
-    img_pts = np.dot(K1, norm_pts1).T
-
-    # extract RGB information and store in new arrays with the coordinates
-    img_colours = np.array([ img1[ pt[1] ][ pt[0] ] for pt in img_pts ])
-
-    return img_pts, img_colours
+    # refined_pts are 1xNx2 arrays
+    return refined_pts1, refined_pts2, filtered_kp1, filtered_kp2
 
 def triangulate_points(P1, P2, refined_pts1, refined_pts2):
     '''Reconstructs 3D points by triangulation using Direct Linear Transformation.'''
     # convert to 2xN arrays
-    img1_pts = refined_pts1[0].T
-    img2_pts = refined_pts2[0].T
+    refined_pts1 = refined_pts1[0].T
+    refined_pts2 = refined_pts2[0].T
 
     # pick the P2 matrix with the most scene points in front of the cameras after triangulation
     ind = 0
     maxres = 0
     for i in range(4):
         # triangulate inliers and compute depth for each camera
-        homog_3D = cv2.triangulatePoints(P1, P2[i], img1_pts, img2_pts)
+        homog_3D = cv2.triangulatePoints(P1, P2[i], refined_pts1, refined_pts2)
         # the sign of the depth is the 3rd value of the image point after projecting back to the image
         d1 = np.dot(P1, homog_3D)[2]
         d2 = np.dot(P2[i], homog_3D)[2]
@@ -206,182 +218,188 @@ def triangulate_points(P1, P2, refined_pts1, refined_pts2):
     # triangulate inliers and keep only points that are in front of both cameras
     # homog_3D is a 4xN array of reconstructed points in homogeneous coordinates
     # pts_3D is a Nx3 array
-    homog_3D = cv2.triangulatePoints(P1, P2[ind], img1_pts, img2_pts)
+    homog_3D = cv2.triangulatePoints(P1, P2[ind], refined_pts1, refined_pts2)
     homog_3D = homog_3D[:, infront]
     homog_3D = homog_3D / homog_3D[3]
     pts_3D = np.array(homog_3D[:3]).T
 
     return homog_3D, pts_3D
 
-def delaunay(homog_3D, pts_3D):
-    '''Delaunay tetrahedralization of 3D points.'''
-    x, y, z = pts_3D.T[0], pts_3D.T[1], pts_3D.T[2]
-    x_med, y_med, z_med = np.median(x), np.median(y), np.median(z)
-    x_std, y_std, z_std = np.std(x), np.std(y), np.std(z)
-    
-    def add_face(v1, v2, v3):
-        '''Makes sure the indices stored in each face is always in the order small --> large.'''
-        face_vertices = [v1, v2, v3]
+def get_colours(img1, K1, K2, norm_pts1, norm_pts2, homog_3D):
+    '''Extract RGB data from the original images and store them in new arrays.'''
+    # get the original x and y image coords
+    norm_pts1 = np.array([ pt[0] for pt in norm_pts1 ])
+    norm_pts1 = np.vstack((norm_pts1.T, np.ones(norm_pts1.shape[0])))
+    img1_pts = np.dot(K1, norm_pts1).T
+    norm_pts2 = np.array([ pt[0] for pt in norm_pts2 ])
+    norm_pts2 = np.vstack((norm_pts2.T, np.ones(norm_pts2.shape[0])))
+    img2_pts = np.dot(K2, norm_pts2).T
 
-        if valid_face(v1, v2, v3):
-           for vertex in face_vertices:
-                _min = min(face_vertices)
-                _max = max(face_vertices)
+    # extract RGB information from first image and store in new arrays with the coordinates
+    img_colours = np.array([ img1[ pt[1] ][ pt[0] ] for pt in img1_pts ])
 
-	        if set([ face_vertices.index(_min), face_vertices.index(_max) ]) == set([0,1]):
-	            _mid = face_vertices[2]
-	        elif set([ face_vertices.index(_min), face_vertices.index(_max) ]) == set([1,2]):
-	            _mid = face_vertices[0]
-	        else:
-	            _mid = face_vertices[1]
+    return img1_pts, img2_pts, img_colours
 
-	        faces.add( (_min, _mid, _max) )
+def attach_indices(i, pts_3D, filtered_kp1, filtered_kp2, pts_3D_indexed=[]):
+    '''Attach to each 3D point, indices into the original lists of keypoints and descriptors 
+    of the 2D points that contributed to this 3D point in the cloud.'''
+    if pts_3D_indexed == []:
+        for num, coords in enumerate(pts_3D):
+            pts_3D_indexed.append({'coords': coords, 'origin': {i: filtered_kp1[num], i+1: filtered_kp2[num]}})
+    else:
+        pass
 
-    def valid_face(v1, v2, v3):
-	    '''Returns False if any vertex coordinate in the face is further by more than 1 std dev from
-	    the corresponding coordinates of the other vertices, else returns True.'''
-	    v1_pt, v2_pt, v3_pt = pts_3D[v1], pts_3D[v2], pts_3D[v3]
-	    x_vals = zip(v1_pt, v2_pt, v3_pt)[0]
-	    y_vals = zip(v1_pt, v2_pt, v3_pt)[1]
-	    z_vals = zip(v1_pt, v2_pt, v3_pt)[2]
-	    N = 1 # number of std devs
+    return pts_3D_indexed
 
-	    for i in range(len(x_vals)):
-	        for j in range(i+1,len(x_vals)):
-	            if x_vals[j] > x_vals[i] + N*x_std or x_vals[j] < x_vals[i] - N*x_std:
-	                return False
-
-	    for i in range(len(y_vals)):
-	        for j in range(i+1,len(y_vals)):
-	            if y_vals[j] > y_vals[i] + N*y_std or y_vals[j] < y_vals[i] - N*y_std:
-	                return False
-
-	    for i in range(len(z_vals)):
-	        for j in range(i+1,len(z_vals)):
-	            if z_vals[j] > z_vals[i] + N*z_std or z_vals[j] < z_vals[i] - N*z_std:
-					return False
-
-	    return True
-
-    # filtered_pts = remove_outliers(pts_3D)
-    tetra = Delaunay(pts_3D)
-    faces = set()
-
-    for i in xrange(tetra.nsimplex):
-        # tetra.simplices is a Nx4 array. Each row contains the indices of points that make up a tetrahedron
-        # each face added is a tuple containing the indices of the points that make up that face
-        add_face(tetra.simplices[i,0], tetra.simplices[i,1], tetra.simplices[i,2])
-        add_face(tetra.simplices[i,1], tetra.simplices[i,3], tetra.simplices[i,2])
-        add_face(tetra.simplices[i,0], tetra.simplices[i,3], tetra.simplices[i,1])
-        add_face(tetra.simplices[i,0], tetra.simplices[i,2], tetra.simplices[i,3])
-
-    print "# faces: ", len(faces)
-    faces = list(faces)
-
-    # points
-    points = np.array([ pts_3D[vertex] for face in faces for vertex in face ])
-    print points.shape
-
-    # triangles
-    faces = np.array(faces)
-    triangles = faces
-    print triangles.shape
-
-    actor = vtk_cloud.vtk_triangles(points, triangles)
-    vtk_cloud.vtk_basic([actor])
-    # return faces
-
-def gen_pt_cloud(i, prev_sensor, image1, image2):
+def gen_pt_cloud(i, prev_sensor, image1, image2, poses):
     '''Generates a point cloud for a pair of images. Generated point cloud is on the local coordinate system.'''
     print "    Loading images..."
-    img1, img2 = load_images(image1, image2)    
+    img1, img2 = load_images(image1, image2)
+    img1_gray, img2_gray = gray_images(img1, img2)
     print "    Building camera calibration matrices..."
     sensor_i, K1, K2 = build_calibration_matrices(i, prev_sensor, image1, image2)
 
-    img1_gray, img2_gray = gray_images(img1, img2)
-    print "    Detecting keypoints..."
-    print "    Computing descriptors..."
-    kp1, des1, kp2, des2 = find_keypoints_descriptors(img1_gray, img2_gray)
+    print "    Detecting keypoints...\n    Computing descriptors..."
+    kp1, des1 = find_keypoints_descriptors(img1_gray)
+    kp2, des2 = find_keypoints_descriptors(img2_gray)
     print "    Matching keypoints..."
-    src_pts, dst_pts = match_keypoints(kp1, des1, kp2, des2)
+    src_pts, dst_pts, filtered_kp1, filtered_kp2 = match_keypoints(kp1, des1, kp2, des2)
     norm_pts1, norm_pts2 = normalize_pts(K1, K2, src_pts, dst_pts)
 
     E, mask = find_essential_matrix(K1, norm_pts1, norm_pts2)
-    P1, P2 = find_projection_matrices(E)
-
-    refined_pts1, refined_pts2 = refine_points(norm_pts1, norm_pts2, E, mask)
+    P1, P2 = find_projection_matrices(E, poses)
+    refined_pts1, refined_pts2, filtered_kp1, filtered_kp2 = refine_points(norm_pts1, norm_pts2, E, mask, filtered_kp1, filtered_kp2)
+    
     print "    Triangulating 3D points..."
     homog_3D, pts_3D = triangulate_points(P1, P2, refined_pts1, refined_pts2)
-    delaunay(homog_3D, pts_3D)
-
     print "    Extracting colour information..."
-    img_pts, img_colours = get_colours(img1, P1, homog_3D, K1, norm_pts1)
+    img1_pts, img2_pts, img_colours = get_colours(img1, K1, K2, norm_pts1, norm_pts2, homog_3D)
+    pts_3D_indexed = attach_indices(i, pts_3D, filtered_kp1, filtered_kp2)
+    # print pts_3D_indexed
 
-    return sensor_i, K1, P1, homog_3D, pts_3D, img_pts, img_colours
+    return sensor_i, kp2, des2, filtered_kp2, homog_3D, pts_3D, img_colours, pts_3D_indexed
 
+def scan_cloud(i, prev_kp, prev_des, prev_filter, filtered_kp, pt_cloud_indexed):
+    '''Check for matches between the new frame and the current point cloud.'''
+    # prev_filter contains the indices into the list of keypoints from the second image in the last iteration
+    # filtered_kp contains the indices into the list of keypoints from the first image in the current iteration
+    # the second image in the last iteration is the first image in the current iteration
+    # therefore, check for matches by comparing the indices
+    indices_2D  = []
+    matched_pts_2D = []
+    matched_pts_3D = []
 
+    cloud = [ pt['origin'][i] for pt in pt_cloud_indexed ]
+    print "# pts: ", len(cloud)
+    print "# with unique kp: ", len(set(cloud))  
+
+    for new_idx in filtered_kp:
+        for old_idx in prev_filter:
+            if new_idx == old_idx:
+                # found a match: a keypoint that contributed to both the last and current point clouds
+                indices_2D.append(new_idx)
+    print "# indices: ", len(indices_2D)
+    print "1st idx: ", indices_2D[0]
+    for idx in indices_2D:
+        # pt_cloud_indexed is a list of 3D points from the previous cloud with their keypoint indices
+        for pt in pt_cloud_indexed:
+            if pt['origin'][i] == idx:
+                matched_pts_3D.append( pt['coords'] )
+                break
+        continue
+
+    for idx in indices_2D:
+        matched_pts_2D.append( prev_kp[idx].pt )
+
+    matched_pts_2D = np.array(matched_pts_2D, dtype='float32')
+    matched_pts_3D = np.array(matched_pts_3D, dtype='float32')
+    print matched_pts_2D.shape, matched_pts_3D.shape
+
+    return matched_pts_2D, matched_pts_3D
+
+def compute_cam_pose(K1, matched_pts_2D, matched_pts_3D, poses):
+    print matched_pts_2D.shape
+    print matched_pts_3D.shape
+    print K1.shape
+    rvec, tvec = cv2.solvePnPRansac(matched_pts_3D, matched_pts_2D, K1, None)[0:2]
+    pose = np.vstack((np.hstack((cv2.Rodrigues(rvec)[0], tvec)), np.array([0,0,0,1])))
+    # convert to 3x4 matrix before appending
+    poses.append(pose[:3])
+    return poses
+
+def find_new_pts(i, prev_sensor, image1, image2, prev_kp, prev_des, prev_filter, poses, pts_3D_indexed):
+    print "    Loading images..."
+    img1, img2 = load_images(image1, image2)
+    img1_gray, img2_gray = gray_images(img1, img2)
+    print "    Building camera calibration matrices..."
+    sensor_i, K1, K2 = build_calibration_matrices(i, prev_sensor, image1, image2)
+
+    print "    Detecting keypoints...\n    Computing descriptors..."
+    new_kp, new_des = find_keypoints_descriptors(img2_gray)
+    print "    Matching keypoints..."
+    src_pts, dst_pts, filtered_kp1, filtered_kp2 = match_keypoints(prev_kp, prev_des, new_kp, new_des)
+    norm_pts1, norm_pts2 = normalize_pts(K1, K2, src_pts, dst_pts)
+
+    E, mask = find_essential_matrix(K1, norm_pts1, norm_pts2)
+    refined_pts1, refined_pts2, filtered_kp1, filtered_kp2 = refine_points(norm_pts1, norm_pts2, E, mask, filtered_kp1, filtered_kp2)
+    
+    print "    Scanning cloud..."
+    matched_pts_2D, matched_pts_3D = scan_cloud(i, prev_kp, prev_des, prev_filter, filtered_kp1, pts_3D_indexed)
+    print "    Computing camera pose..."
+    poses = compute_cam_pose(K1, matched_pts_2D, matched_pts_3D, poses)
+    P1, P2 = find_projection_matrices(E, poses)
+
+    print "    Triangulating 3D points..."
+    homog_3D, pts_3D = triangulate_points(P1, P2, refined_pts1, refined_pts2)
+    print "    Extracting colour information..."
+    img1_pts, img2_pts, img_colours = get_colours(img1, K1, K2, norm_pts1, norm_pts2, homog_3D)
+    pts_3D_indexed = attach_indices(i, pts_3D, filtered_kp1, filtered_kp2)
+
+    return sensor_i, new_kp, new_des, filtered_kp2, poses, homog_3D, pts_3D, img_colours, pts_3D_indexed
 
 def main():
     '''Loop through each pair of images, find point correspondences and generate 3D point cloud.
     Multiply each point cloud by the 4x4 transformation matrix up to that point 
     to get the 3D point (as seen by camera 1) and append this point to the overall point cloud.'''
-    # directory = 'images/ucd_building3_all'
+    # directory = 'images/ucd_building6_all'
     # images = ['images/ucd_coffeeshack_all/00000002.JPG', 'images/ucd_coffeeshack_all/00000003.JPG']
     # images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
-    images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg']
+    images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg', 'images/ucd_building4_all/00000002.jpg', 'images/ucd_building4_all/00000003.jpg', 'images/ucd_building4_all/00000004.jpg']
     # images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
     prev_sensor = 0
-    t_matrices = []
+    poses = [np.vstack((np.eye(3), np.zeros(3))).T]
 
     for i in range(len(images)-1):
-		print "\n Processing ", images[i].split('/')[2], "and ", images[i+1].split('/')[2]
-		prev_sensor, K, P, homog_3D, pts_3D, img_pts, img_colours = gen_pt_cloud(i, prev_sensor, images[i], images[i+1])
+        print "\n  Processing ", images[i].split('/')[2], "and ", images[i+1].split('/')[2]
 
-		if i == 0:
-			# first 2 images
-			pt_cloud = np.array(pts_3D)
-			colours = np.array(img_colours)
+        if i == 0:
+            # first 2 images
+            prev_sensor, prev_kp, prev_des, prev_filter, homog_3D, pts_3D, img_colours, pts_3D_indexed = gen_pt_cloud(i, prev_sensor, images[i], images[i+1], poses)
+            pt_cloud = np.array(pts_3D)
+            colours = np.array(img_colours)
 
-		elif i >= 1:
-		    print "i: ", i
+        elif i >= 1:
+            prev_sensor, prev_kp, prev_des, prev_filter, poses, homog_3D, pts_3D, img_colours, pts_3D_indexed = find_new_pts(i, prev_sensor, images[i], images[i+1], prev_kp, prev_des, prev_filter, poses, pts_3D_indexed)
+            poses.append(pose)
+            print "prev kp: ", len(prev_kp), len(prev_des)
+            pt_cloud = np.vstack((pt_cloud, pts_3D))
+            colours = np.vstack((colours, img_colours))
+            print pt_cloud.shape
+            print colours.shape
 
-		    r_t = np.vstack((np.dot(np.linalg.inv(K), P), np.array([0,0,0,1])))
-		    print "r_t: ", r_t
 
-		    # transform the 3D point set so that it is viewed from camera 1
-		    # get the matrix that transforms camera --> object coordinate system?
-		    # tvec is the position of the world origin in camera coords
-		    rvec, tvec = cv2.solvePnP(pts_3D, img_pts, K, None)[1:3]
-		    print "rvec: ", rvec
-		    print "tvec: ", tvec
-		    t = np.vstack((np.hstack((cv2.Rodrigues(rvec)[0], tvec)), np.array([0,0,0,1])))
-		    print "t :", t
-		    t_matrices.append(t)
-		    print "# t_matrices: ", range(len(t_matrices))
-
-		    # transform the 3D points using the camera pose; homog_3D remains a 4xN array
-		    for j in reversed(range(i)):
-		            print "multiplying with cam_poses[",j,"]"                        
-		            homog_3D = np.array([ np.dot(np.linalg.inv(t_matrices[j]), homog_3D) ])[0]
-
-		pts_3D = homog_3D[:3].T
-		print "pt_cloud shape: ", pt_cloud.shape
-		print "homog_3D shape: ", pts_3D.shape
-		pt_cloud = np.vstack((pt_cloud, pts_3D))
-		colours = np.vstack((colours, img_colours))
-
-		print "pt_cloud: ", pt_cloud.shape
-		print "colours: ", colours.shape
+		# print "pt_cloud: ", pt_cloud.shape
+		# print "colours: ", colours.shape
              
     # homog_pt_cloud = np.vstack((pt_cloud.T, np.ones(pt_cloud.shape[0])))
 
     # draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
     # draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
     # draw.draw_projected_points(homog_pt_cloud, P)
-    # np.savetxt('points/homog_ucd_4.txt', [pt for pt in homog_3D])
-    # np.savetxt('points/ucd_coffeeshack_1-2.txt', [pt for pt in pt_cloud])
-    # pt_cloud = np.loadtxt('points/ucd_building4_1-2.txt')
-    # pt_cloud = np.loadtxt('points/alcatraz.txt')
+    np.savetxt('points/ucd_building6_pts.txt', [pt for pt in pt_cloud])
+    np.savetxt('points/ucd_building6_col.txt', [pt for pt in colours])
+    # pt_cloud = np.loadtxt('points/ucd_building4_pts.txt')
+    # colours = np.loadtxt('points/ucd_building4_col.txt')
     # draw.display_pyglet(pt_cloud, colours)
     vtk_cloud.vtk_show_points(pt_cloud, list(colours))
 
