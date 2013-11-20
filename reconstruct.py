@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 from scipy.spatial import Delaunay
 from gi.repository import GExiv2
-import draw, vtk_cloud, model
+import draw, display_vtk, cam_db
 import matplotlib.pyplot as plt
 
 def load_images(filename1, filename2):
@@ -23,11 +23,11 @@ def build_calibration_matrices(i, prev_sensor, filename1, filename2):
         '''Looks up sensor width from the database based on the camera model.'''
         # focal length in pixels = (image width in pixels) * (focal length in mm) / (CCD width in mm)
         if i == 0:
-        	sensor_1 = model.get_sensor_size(metadata1['Exif.Image.Model'].upper())
-        	sensor_2 = model.get_sensor_size(metadata2['Exif.Image.Model'].upper())
+        	sensor_1 = cam_db.get_sensor_size(metadata1['Exif.Image.Model'].upper())
+        	sensor_2 = cam_db.get_sensor_size(metadata2['Exif.Image.Model'].upper())
         elif i >= 1:
             sensor_1 = prev_sensor
-            sensor_2 = model.get_sensor_size(metadata2['Exif.Image.Model'])
+            sensor_2 = cam_db.get_sensor_size(metadata2['Exif.Image.Model'])
 
         return sensor_1, sensor_2
 
@@ -142,20 +142,23 @@ def find_projection_matrices(E, poses):
     Output is a list of 4 possible camera matrices for P2.'''
     # the first camera matrix is assumed to be the identity matrix for the first image,
     # or the pose of the camera for the second and subsequent images
+    print "# poses: ", len(poses)
     P1 = np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)
     if len(poses) >= 1:
-        for i in reversed(range(len(poses)-1)):
+        for i in reversed(range(len(poses))):
+            print "inversing pose ", i
             # the inverse of the pose matrix, i.e. [R | t]' = [R' | -R't]  
             inv_r1 = np.linalg.inv(poses[i][:,:3])
             t1 = poses[i][:,-1]
-            P1 = np.vstack((inv_r1, np.dot(inv_r1, t1))).T
+            P1 = np.vstack((inv_r1, np.dot(-inv_r1, t1))).T
             P1 = np.vstack((P1, np.array([0,0,0,1])))
             inv_r2 = np.linalg.inv(poses[i-1][:,:3])
             t2 = poses[i-1][:,-1]
-            P2 = np.vstack((inv_r2, np.dot(inv_r2, t2))).T
+            P2 = np.vstack((inv_r2, np.dot(-inv_r2, t2))).T
             P2 = np.vstack((P2, np.array([0,0,0,1])))
             P1 = np.dot(P2, P1)
         P1 = P1[:3]
+        
     # make sure E is rank 2
     U, S, V = np.linalg.svd(E)
     if np.linalg.det(np.dot(U, V)) < 0:
@@ -208,12 +211,12 @@ def triangulate_points(P1, P2, refined_pts1, refined_pts2):
         d2 = np.dot(P2[i], homog_3D)[2]
         print "# d1: ", len(d1)
         print "d1: ", d1
-        print "pts in front: ", sum(d1<0), sum(d2>0)
+        print "pts in front: ", sum(d1>0), sum(d2<0)
         
-        if sum(d1 < 0) + sum(d2 > 0) > maxres:
-            maxres = sum(d1 < 0) + sum(d2 > 0)
+        if sum(d1 > 0) + sum(d2 < 0) > maxres:
+            maxres = sum(d1 > 0) + sum(d2 < 0)
             ind = i
-            infront = (d1 < 0) & (d2 > 0)
+            infront = (d1 > 0) & (d2 < 0)
 
     # triangulate inliers and keep only points that are in front of both cameras
     # homog_3D is a 4xN array of reconstructed points in homogeneous coordinates
@@ -338,15 +341,8 @@ def scan_cloud(i, prev_kp, prev_des, prev_filter, filtered_kp, pt_cloud_indexed)
     return matched_pts_2D, matched_pts_3D
 
 def compute_cam_pose(K1, matched_pts_2D, matched_pts_3D, poses):
-    print matched_pts_2D.shape
-    print matched_pts_3D.shape
-    print K1.shape
     rvec, tvec = cv2.solvePnPRansac(matched_pts_3D, matched_pts_2D, K1, None)[0:2]
     rmat = cv2.Rodrigues(rvec)[0]
-    # diag = np.diag(np.sign(np.diag(rmat)))
-    # if np.linalg.det(diag) < 0:
-    #     diag[1,1] *= -1
-    # rmat = np.dot(diag, rmat)
     pose = np.vstack((np.hstack((rmat, tvec)), np.array([0,0,0,1])))
     # convert to 3x4 matrix before appending
     poses.append(pose[:3])
@@ -384,12 +380,12 @@ def find_new_pts(i, prev_sensor, image1, image2, prev_kp, prev_des, prev_filter,
 
 def main():
     '''Loop through each pair of images, find point correspondences and generate 3D point cloud.
-    Multiply each point cloud by the 4x4 transformation matrix up to that point 
-    to get the 3D point (as seen by camera 1) and append this point to the overall point cloud.'''
+    Multiply each point cloud by the inverse of the camera matrices (camera poses) up to that point 
+    to get the 3D point (as seen by camera 1) and append this point cloud to the overall point cloud.'''
     directory = 'images/ucd_building4_all'
     # images = ['images/ucd_coffeeshack_all/00000002.JPG', 'images/ucd_coffeeshack_all/00000002.JPG', 'images/ucd_coffeeshack_all/00000003.JPG']
     # images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
-    # images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg', 'images/ucd_building4_all/00000002.jpg', 'images/ucd_building4_all/00000003.jpg', 'images/ucd_building4_all/00000004.jpg', 'images/ucd_building4_all/00000005.jpg', 'images/ucd_building4_all/00000005.jpg']
+    # images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg', 'images/ucd_building4_all/00000002.jpg', 'images/ucd_building4_all/00000003.jpg', 'images/ucd_building4_all/00000004.jpg', 'images/ucd_building4_all/00000005.jpg', 'images/ucd_building4_all/00000006.jpg']
     images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
     prev_sensor = 0
     poses = [np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)]
@@ -426,7 +422,7 @@ def main():
     # pt_cloud = np.loadtxt('points/ucd_building4_pts.txt')
     # colours = np.loadtxt('points/ucd_building4_col.txt')
     # draw.display_pyglet(pt_cloud, colours)
-    vtk_cloud.vtk_show_points(pt_cloud, list(colours))
+    display_vtk.vtk_show_points(pt_cloud, list(colours))
 
 
 main()

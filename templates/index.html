@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block body %}
+
+    <h2>Upload photos</h2>
+    <br>
+    <h3><div class='dragAndDrop_off' id ='dragAndDropHandler'> Drag and drop photos here</div></h3>
+    <div id='uploadStatus'></div>
+    <br>
+
+
+    <h2>Uploaded photos</h2><br>
+    {% for photo in photos %}
+    <div class='thumbnail'><img src="/static/uploads/{{photo}}" ></div>
+    {% endfor %}
+
+    <div id='viewer'></div>
+
+{% endblock %}

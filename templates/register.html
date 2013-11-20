@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block body %}
+    <h2>Register</h2>
+    <br>
+    {% for  message in get_flashed_messages() %}
+        {{message}}<br>
+    {% endfor %}
+    <form method="post">
+        <input type="text" name="username" placeholder="Username"><br>
+        <input type="text" name="password" placeholder="Password"><br>
+        <input type="text" name="verify_password" placeholder="Verify Password"><br>
+        <input type="submit">
+    </form>
+{% endblock %}
