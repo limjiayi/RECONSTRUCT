@@ -213,8 +213,8 @@ def triangulate_points(P1, P2, refined_pts1, refined_pts2):
         print "d1: ", d1
         print "pts in front: ", sum(d1>0), sum(d2<0)
         
-        if sum(d1 > 0) + sum(d2 < 0) > maxres:
-            maxres = sum(d1 > 0) + sum(d2 < 0)
+        if sum(d1>0) + sum(d2<0) > maxres:
+            maxres = sum(d1>0) + sum(d2<0)
             ind = i
             infront = (d1 > 0) & (d2 < 0)
 
@@ -382,10 +382,10 @@ def main():
     '''Loop through each pair of images, find point correspondences and generate 3D point cloud.
     Multiply each point cloud by the inverse of the camera matrices (camera poses) up to that point 
     to get the 3D point (as seen by camera 1) and append this point cloud to the overall point cloud.'''
-    directory = 'images/ucd_building4_all'
+    directory = 'images/Lund_University'
     # images = ['images/ucd_coffeeshack_all/00000002.JPG', 'images/ucd_coffeeshack_all/00000002.JPG', 'images/ucd_coffeeshack_all/00000003.JPG']
     # images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
-    # images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg', 'images/ucd_building4_all/00000002.jpg', 'images/ucd_building4_all/00000003.jpg', 'images/ucd_building4_all/00000004.jpg', 'images/ucd_building4_all/00000005.jpg', 'images/ucd_building4_all/00000006.jpg']
+    # images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg', 'images/ucd_building4_all/00000002.jpg']
     images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
     prev_sensor = 0
     poses = [np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)]
@@ -400,12 +400,16 @@ def main():
             colours = np.array(img_colours)
 
         elif i >= 1:
-            prev_sensor, prev_kp, prev_des, prev_filter, poses, homog_3D, pts_3D, img_colours, pt_cloud_indexed = find_new_pts(i, prev_sensor, images[i], images[i+1], prev_kp, prev_des, prev_filter, poses, pt_cloud_indexed)
-            print "prev kp: ", len(prev_kp), len(prev_des)
-            pt_cloud = np.vstack((pt_cloud, pts_3D))
-            colours = np.vstack((colours, img_colours))
-            print pt_cloud.shape
-            print colours.shape
+            try:
+                prev_sensor, prev_kp, prev_des, prev_filter, poses, homog_3D, pts_3D, img_colours, pt_cloud_indexed = find_new_pts(i, prev_sensor, images[i], images[i+1], prev_kp, prev_des, prev_filter, poses, pt_cloud_indexed)
+                print "prev kp: ", len(prev_kp), len(prev_des)
+                pt_cloud = np.vstack((pt_cloud, pts_3D))
+                colours = np.vstack((colours, img_colours))
+                print pt_cloud.shape
+                print colours.shape
+            except:
+                print "Error occurred."
+                break
 
 
 		# print "pt_cloud: ", pt_cloud.shape
@@ -418,7 +422,6 @@ def main():
     # draw.draw_projected_points(homog_pt_cloud, P)
     np.savetxt('points/ucd_building6_pts.txt', [pt for pt in pt_cloud])
     np.savetxt('points/ucd_building6_col.txt', [pt for pt in colours])
-    # np.loadtxt('points/ucd_building6_col.txt')
     # pt_cloud = np.loadtxt('points/ucd_building4_pts.txt')
     # colours = np.loadtxt('points/ucd_building4_col.txt')
     # draw.display_pyglet(pt_cloud, colours)

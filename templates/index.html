@@ -3,16 +3,20 @@
 
     <h2>Upload photos</h2>
     <br>
-    <h3><div class='dragAndDrop_off' id ='dragAndDropHandler'> Drag and drop photos here</div></h3>
-    <div id='uploadStatus'></div>
+        <div class='dropbox'>Drag and drop photos here</div>
     <br>
-
 
     <h2>Uploaded photos</h2><br>
     {% for photo in photos %}
-    <div class='thumbnail'><img src="/static/uploads/{{photo}}" ></div>
+        <img class='thumbnail' src="/static/uploads/{{photo}}" ></div>
     {% endfor %}
+    <br>
 
+    {% if username %}
+        <h2>My point cloud</h2><br>
+    {% else %}
+        <h2>Visualize point cloud</h2><br>
+    {% endif %}
     <div id='viewer'></div>
 
 {% endblock %}
