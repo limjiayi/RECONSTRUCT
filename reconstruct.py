@@ -6,6 +6,50 @@ from gi.repository import GExiv2
 import draw, display_vtk, cam_db
 import matplotlib.pyplot as plt
 
+def load_points(filename):
+    format = filename.rpartition('.')[2]
+    if format == 'txt':
+        data = np.loadtxt(filename)
+        pt_cloud = data[:,:3]
+        colours = data[:,3:]
+
+    elif format == 'pcd':
+        data = np.loadtxt(filename)[11:]
+        pt_cloud = data[:,:3]
+        colours = data[:,3:]
+
+    display_vtk.vtk_show_points(pt_cloud, list(colours))
+
+def save_points(images, pt_cloud, colours, save_format):
+    filename = images[0].rpartition('/')[2].rpartition('.')[0].lower()
+    if save_format == 'txt':
+        data = np.hstack((pt_cloud, colours))
+        np.savetxt('%s.%s' % (filename, save_format), data, delimiter=" ")
+
+    elif save_format == 'pcd':
+        HEADER = '# .PCD v.7 - Point Cloud Data file format'
+        VERSION = '.7'
+        FIELDS = 'x y z rgb'
+        SIZE = '4 4 4 4'
+        TYPE = 'F F F F'
+        COUNT = '1 1 1 1'
+        WIDTH = pt_cloud.shape[0]
+        HEIGHT = '1'
+        VIEWPOINT = '0 0 0 1 0 0 0'
+        POINTS = pt_cloud.shape[0]
+        DATA = 'ascii'
+        header_info = list(HEADER, VERSION, FIELDS, SIZE, TYPE, COUNT, WIDTH, HEIGHT, VIEWPOINT, POINTS, DATA)
+        file_data = np.hstack((pt_cloud, colours))
+
+        f = open('%s.%s' % (filename, save_format), 'w')
+        for item in header_info:
+            f.write(item)
+        for pt in file_data:
+            f.write(pt)
+        f.close()
+    print "Saved file as ", filename, save_format
+
+
 def load_images(filename1, filename2):
     '''Loads 2 images.'''
     # img1 and img2 are HxWx3 arrays (rows, columns, 3-colour channels)
@@ -382,54 +426,55 @@ def main():
     '''Loop through each pair of images, find point correspondences and generate 3D point cloud.
     Multiply each point cloud by the inverse of the camera matrices (camera poses) up to that point 
     to get the 3D point (as seen by camera 1) and append this point cloud to the overall point cloud.'''
-    directory = 'images/Lund_University'
-    # images = ['images/ucd_coffeeshack_all/00000002.JPG', 'images/ucd_coffeeshack_all/00000002.JPG', 'images/ucd_coffeeshack_all/00000003.JPG']
-    # images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
-    # images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg', 'images/ucd_building4_all/00000002.jpg']
-    images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
-    prev_sensor = 0
-    poses = [np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)]
+    load_filename = 'points/alcatraz1.txt'
+    save_format = 'txt'
 
-    for i in range(len(images)-1):
-        print "\n  Processing ", images[i].split('/')[2], "and ", images[i+1].split('/')[2]
+    if load_filename != '':
+        load_points(load_filename)
+    else:
+        # directory = 'images/ucd_building4_all'
+        # images = ['images/ucd_coffeeshack_all/00000002.JPG', 'images/ucd_coffeeshack_all/00000002.JPG', 'images/ucd_coffeeshack_all/00000003.JPG']
+        images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
+        # images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg', 'images/ucd_building4_all/00000002.jpg']
+        # images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
+        prev_sensor = 0
+        poses = [np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)]
 
-        if i == 0:
-            # first 2 images
-            prev_sensor, prev_kp, prev_des, prev_filter, homog_3D, pts_3D, img_colours, pt_cloud_indexed = gen_pt_cloud(i, prev_sensor, images[i], images[i+1], poses)
-            pt_cloud = np.array(pts_3D)
-            colours = np.array(img_colours)
+        for i in range(len(images)-1):
+            print "\n  Processing ", images[i].split('/')[2], "and ", images[i+1].split('/')[2]
 
-        elif i >= 1:
-            try:
-                prev_sensor, prev_kp, prev_des, prev_filter, poses, homog_3D, pts_3D, img_colours, pt_cloud_indexed = find_new_pts(i, prev_sensor, images[i], images[i+1], prev_kp, prev_des, prev_filter, poses, pt_cloud_indexed)
-                print "prev kp: ", len(prev_kp), len(prev_des)
-                pt_cloud = np.vstack((pt_cloud, pts_3D))
-                colours = np.vstack((colours, img_colours))
-                print pt_cloud.shape
-                print colours.shape
-            except:
-                print "Error occurred."
-                break
+            if i == 0:
+                # first 2 images
+                prev_sensor, prev_kp, prev_des, prev_filter, homog_3D, pts_3D, img_colours, pt_cloud_indexed = gen_pt_cloud(i, prev_sensor, images[i], images[i+1], poses)
+                pt_cloud = np.array(pts_3D)
+                colours = np.array(img_colours)
 
+            elif i >= 1:
+                try:
+                    prev_sensor, prev_kp, prev_des, prev_filter, poses, homog_3D, pts_3D, img_colours, pt_cloud_indexed = find_new_pts(i, prev_sensor, images[i], images[i+1], prev_kp, prev_des, prev_filter, poses, pt_cloud_indexed)
+                    print "prev kp: ", len(prev_kp), len(prev_des)
+                    pt_cloud = np.vstack((pt_cloud, pts_3D))
+                    colours = np.vstack((colours, img_colours))
+                    print pt_cloud.shape
+                    print colours.shape
+                except:
+                    print "Error occurred."
+                    break
 
-		# print "pt_cloud: ", pt_cloud.shape
-		# print "colours: ", colours.shape
-             
-    # homog_pt_cloud = np.vstack((pt_cloud.T, np.ones(pt_cloud.shape[0])))
+        # homog_pt_cloud = np.vstack((pt_cloud.T, np.ones(pt_cloud.shape[0])))
 
-    # draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
-    # draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
-    # draw.draw_projected_points(homog_pt_cloud, P)
-    np.savetxt('points/ucd_building6_pts.txt', [pt for pt in pt_cloud])
-    np.savetxt('points/ucd_building6_col.txt', [pt for pt in colours])
-    # pt_cloud = np.loadtxt('points/ucd_building4_pts.txt')
-    # colours = np.loadtxt('points/ucd_building4_col.txt')
-    # draw.display_pyglet(pt_cloud, colours)
-    display_vtk.vtk_show_points(pt_cloud, list(colours))
+        # draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
+        # draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
+        # draw.draw_projected_points(homog_pt_cloud, P)
+
+        save_points(images, pt_cloud, colours, save_format)
+        # np.savetxt('points/ucd_building6_pts.txt', [pt for pt in pt_cloud])
+        # np.savetxt('points/ucd_building6_col.txt', [pt for pt in colours])
+        # pt_cloud = np.loadtxt('points/ucd_building4_pts.txt')
+        # colours = np.loadtxt('points/ucd_building4_col.txt')
+
+        # draw.display_pyglet(pt_cloud, colours)
+        display_vtk.vtk_show_points(pt_cloud, list(colours))
 
 
 main()
-
-# homog_3D = np.loadtxt('points/homog_ucd_4.txt')
-# pts_3D = np.loadtxt('points/ucd_building4_1-2.txt')
-# delaunay(homog_3D, pts_3D)
