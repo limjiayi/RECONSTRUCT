@@ -1,39 +1,90 @@
+.navbar>li>a:hover {
+    color: #E3A71B;
+}
+
+.cloud {
+    width: 200px;
+    opacity: 0.5;
+}
+
 .dropbox {
-    border: 2px dotted #46484A;
-    width: 100%;
+    position: relative;
+    border: 2px dotted #414542;
     height: 200px;
     color: #92AAB0;
-    text-align: center;
-    vertical-align: middle;
-    padding: 10px 10px 10 10px;
     margin-bottom: 10px;
     font-size: 150%;
     font-weight: bold;
-}
-
-.thumbnail {
-    float: left;
-    width: 200px;
-    height: 150px;
-    margin-bottom: 20px;
 }
 
 .dropbox.on {
+    position: relative;
     border: 2px dotted #356585;
-    width: 100%;
     height: 200px;
-    color: #FAFAFA;
+    color: black;
     background-color: #C5D4D9;
-    text-align: center;
-    vertical-align: middle;
-    padding: 10px 10px 10 10px;
     margin-bottom: 10px;
     font-size: 150%;
     font-weight: bold;
 }
 
-h2 {
+.text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    height: 2em;
+    margin-top: -1em;
+    margin-left: -3em;
+    text-align: center;
+}
+
+#preview {
     clear: both;
+    width: 100%;
+    margin-bottom: 50px;
+}
+
+img {
+    float: left;
+    width: 200px;
+    opacity: 0.5;
+    margin: 0 10 30 0;
+}
+
+.checked {
+    float: left;
+    width: 200px;
+    margin: 0 10 30 0;
+    opacity: 1;
+}
+
+.visualize {
+    clear: both;
+    margin-bottom: 30px;
+}
+
+h2:hover {
+    color: #103F7D;
+}
+
+.startbtn {
+    width: 100px;
+    height: 30px;
+    margin: 20 0 30 0;
+    background: #707980;
+    color: white;
+    font-family: Helvetica, Arial, Sans-Serif;
+    font-size: 15px;
+}
+
+.startbtn.on {
+    width: 100px;
+    height: 30px;
+    margin: 20 0 30 0;
+    background: #294C7D;
+    color: white;
+    font-family: Helvetica, Arial, Sans-Serif;
+    font-size: 15px;
 }
 
 canvas {

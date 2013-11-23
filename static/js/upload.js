@@ -18,8 +18,7 @@ function dragover(e) {
 function drop(e) {
     e.stopPropagation();
     e.preventDefault();
-    var dataTransfer = e.dataTransfer; // get the dataTransfer field from the event
-    var files = dataTransfer.files;
+    var files = e.dataTransfer.files;
     handleFiles(files);
 }
 
@@ -27,48 +26,104 @@ function handleFiles(files) {
     for (var i = 0; i < files.length; i++) {
         var file = files[i];
         var imageType = /image.*/;
-    
+        var $img = $('<img src="" width="200" />');
+        $('#preview').append($img);
+
+        $img.click( function() {
+            $(this).toggleClass('checked');
+        });
+
         if (!file.type.match(imageType)) {
-        continue;
+            console.log("File is not an image!", imageType);
         }
      
+        // create thumbnails of the selected photos
+        // photos are stored on disk
         var reader = new FileReader();
-        reader.onload = (function(aImg) { return function(e) { aImg.src = e.target.result; }; })(img);
+        reader.onload = (function(img) {
+            return function(e) {
+                img.src = e.target.result;
+            };
+        })($img.get(0));
         reader.readAsDataURL(file);
     }
-    sendFiles(files);
-}
-
-function sendFiles(files) {
-    for (var i=0; i < files.length; i++) {
-        new FileUpload(files[i], files[i].file);
+    button = document.getElementsByClassName('startbtn');
+    if (button.length === 0) {
+        $button = $('<button class="startbtn">Start!</button>');
+        $('#preview').append($button);
     }
+    startEnable();
 }
 
-function FileUpload(img, file) {
-    var reader = new FileReader();
-    this.ctrl = createThrobber(img);
-    var xhr = new XMLHttpRequest();
-    this.xhr = xhr;
-
-    var self = this;
-    this.xhr.upload.addEventListener('progress', function(e) {
-        if (e.lengthComputable) {
-            var percentage = Math.round((e.loaded * 100) / e.total);
-            this.ctrl.update(percentage);
+function startEnable() {
+    $('.startbtn').bind('click', function() {
+        $('startbtn').addClass('on');
+        console.log('clicked start');
+        var selectedPhotos = [];
+        var photos = document.getElementsByClassName('checked');
+        if (photos.length < 2) {
+            alert('Minimum of 2 photos required.');
+        } else {
+            for (var i=0; i < photos.length; i++) {
+                selectedPhotos.push(photos[i].src);
+            }
+            console.log('# photos: ', photos.length);
+            sendFiles(selectedPhotos);
+            startDisable();
         }
-    }, false);
+   });
+}
 
-    xhr.upload.addEventListener('load', function(e) {
-        this.ctrl.update(100);
-        var canvas = self.ctrl.ctx.canvas;
-        canvas.parentNode.removeChild(canvas);
-    }, false);
+function startDisable() {
+    $('img').unbind('click');
+    $('.startbtn').unbind('click');
+    $('.startbtn').removeClass('on');
+}
 
-    xhr.open('POST', 'localhost:5000');
-    xhr.overrideMimeType('text/plain, charset=x-user-defined-binary');
-    reader.onload = function(evt) {
-        xhr.sendAsBinary(evt.target.result);
-    };
-    reader.readAsBinaryString(file);
+function sendFiles(photos) {
+    formData = new FormData();
+    for (var i=0; i < photos.length; i++) {
+        formData.append('photo['+i+']', photos[i]);
+    }
+    uploadFiles(formData);
+}
+
+function uploadFiles(formData) {
+    var uploadURL ="/upload";
+    var jqXHR=$.ajax( {
+        xhr: function() {
+            var xhrobj = $.ajaxSettings.xhr();
+            if (xhrobj.upload) {
+                xhrobj.upload.addEventListener('progress', function(event) {
+                    var percent = 0;
+                    var position = event.loaded || event.position;
+                    var total = event.total;
+                    if (event.lengthComputable) {
+                        percent = Math.ceil(position / total * 100);
+                    }
+                }, false);
+            }
+            return xhrobj;
+        },
+        url: uploadURL,
+        type: "POST",
+        contentType:false,
+        processData: false,
+        cache: false,
+        data: formData,
+        success: function(data){
+            console.log('Successfully uploaded files.');
+        }
+    });
+    load_cloud();
+}
+
+function chooseCloud() {
+    clouds = documents.getElementsByClassName('cloud');
+    for (var i=0; i < clouds.length; i++) {
+        $('.cloud').bind('click', function() {
+            $(this).addClass('selected');
+            load_cloud();
+        });
+    }
 }

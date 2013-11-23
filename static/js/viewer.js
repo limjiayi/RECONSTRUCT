@@ -8,6 +8,9 @@ var viewer, camera, scene, renderer, ambient, sphere, controls;
 var VIEW_ANGLE = 70, ASPECT = WIDTH / HEIGHT,
 	NEAR = 1, FAR = 10000;
 
+// set size of the particles
+var particleSize = 1;
+
 // keep track of the mouse position
 var mouseX = 0, mouseY = 0;
 
@@ -43,13 +46,10 @@ function initScene() {
 	controls.staticMoving = true;
 	controls.dynamicDampingFactor = 0.3;
 
-	// load model
 	// SphereGeometry: radius, segmentsWidth, segmentsHeight
-	sphere = new THREE.Mesh(new THREE.SphereGeometry(150,100,100), new THREE.MeshNormalMaterial());
+	// sphere = new THREE.Mesh(new THREE.SphereGeometry(150,100,100), new THREE.MeshNormalMaterial());
 	// sphere.overdraw = true;
-	scene.add(sphere);
-
-	console.log("done initScene");
+	// scene.add(sphere);
 }
 
 // the loop
@@ -63,14 +63,59 @@ function animate() {
 	renderer.render(scene, camera);
 }
 
-function load(filename) {
-	geometry = new THREE.Geometry();
-	geometry.dynamic = true;
+function load_cloud() {
+	model = new THREE.Geometry();
+	model.dynamic = true;
 
 	// get the point cloud
 	// points have to be stored in a text file, with 1 point on each line: x y z r g b, separated by whitespace
-	// ajax stuff
+	$.ajax( {
+		url: '/upload',
+		type: 'GET',
+		async: true,
+		dataType: 'text',
+		success: function(data) {
+			if (data === null) {
+				alert('Loading of point cloud failed.');
+			} else {
+				// point cloud retrieved
+				var cloud = data.split('\n');
 
-	// process file
+				// initialize min and max coords
+				min_x = 0;
+				min_y = 0;
+				min_z = 0;
+				max_x = 0;
+				max_y = 0;
+				max_z = 0;
 
+				colours = [];
+
+				// load the points
+				for (var i=0; i<cloud.length; i++) {
+					var pt = cloud[i].split(" ");
+					var x = parseFloat(pt[0]);
+					var y = parseFloat(pt[1]);
+					var z = parseFloat(pt[2]);
+
+					if (x < min_x) {min_x = x;}
+					if (x > max_x) {max_x = x;}
+					if (y < min_y) {min_y = y;}
+					if (y > max_y) {max_y = y;}
+					if (z < min_z) {min_z = z;}
+					if (z > max_z) {max_z = z;}
+
+					var colour = 'rgb(' + pt[3] + ',' + pt[4] + ',' + pt[5] + ')';
+					model.vertices.push( new THREE.Vector3(x, y, z) );
+					colours.push( new THREE.Color.setRGB(pt[3], pt[4], pt[5]) );
+				}
+				model.colors = colours;
+
+				// load model
+				var material = new THREE.ParticleBasicMaterial({ size: particleSize, vertexColors: true });
+				particles = new THREE.ParticleSystem(model, material);
+				scene.add(particles);
+			}
+		}
+	});
 }

@@ -1,12 +1,12 @@
 import os, sys
 import cv2
 import numpy as np
-from scipy.spatial import Delaunay
+from scipy.spatial import cKDTree
 from gi.repository import GExiv2
 import draw, display_vtk, cam_db
-import matplotlib.pyplot as plt
 
 def load_points(filename):
+    '''Loads .txt and .pcd files.'''
     format = filename.rpartition('.')[2]
     if format == 'txt':
         data = np.loadtxt(filename)
@@ -20,35 +20,30 @@ def load_points(filename):
 
     display_vtk.vtk_show_points(pt_cloud, list(colours))
 
-def save_points(images, pt_cloud, colours, save_format):
-    filename = images[0].rpartition('/')[2].rpartition('.')[0].lower()
+def save_points(images, pt_cloud, colours, filename=None, save_format='txt'):
+    '''Saves point cloud data in .txt or .pcd formats.'''
+    if filename is None:
+        filename = "points/" + images[0].split('/')[1].lower()
+
     if save_format == 'txt':
         data = np.hstack((pt_cloud, colours))
         np.savetxt('%s.%s' % (filename, save_format), data, delimiter=" ")
 
     elif save_format == 'pcd':
-        HEADER = '# .PCD v.7 - Point Cloud Data file format'
-        VERSION = '.7'
-        FIELDS = 'x y z rgb'
-        SIZE = '4 4 4 4'
-        TYPE = 'F F F F'
-        COUNT = '1 1 1 1'
-        WIDTH = pt_cloud.shape[0]
-        HEIGHT = '1'
-        VIEWPOINT = '0 0 0 1 0 0 0'
-        POINTS = pt_cloud.shape[0]
-        DATA = 'ascii'
-        header_info = list(HEADER, VERSION, FIELDS, SIZE, TYPE, COUNT, WIDTH, HEIGHT, VIEWPOINT, POINTS, DATA)
-        file_data = np.hstack((pt_cloud, colours))
+        header = list('# .PCD v.7 - Point Cloud Data file format', 
+                      ' VERSION.7', 'FIELDS x y z rgb', 'SIZE 4 4 4 4', 
+                      'TYPE F F F F', 'COUNT 1 1 1 1', 'WIDTH %s' % pt_cloud.shape[0], 
+                      'HEIGHT 1', 'VIEWPOINT = 0 0 0 1 0 0 0', 
+                      'POINTS %s' % pt_cloud.shape[0], 'DATA ascii')
+        data = np.hstack((pt_cloud, colours))
 
         f = open('%s.%s' % (filename, save_format), 'w')
-        for item in header_info:
+        for item in header:
             f.write(item)
-        for pt in file_data:
+        for pt in data:
             f.write(pt)
         f.close()
-    print "Saved file as ", filename, save_format
-
+    print "    Saved file as %s.%s" % (filename, save_format)
 
 def load_images(filename1, filename2):
     '''Loads 2 images.'''
@@ -186,22 +181,7 @@ def find_projection_matrices(E, poses):
     Output is a list of 4 possible camera matrices for P2.'''
     # the first camera matrix is assumed to be the identity matrix for the first image,
     # or the pose of the camera for the second and subsequent images
-    print "# poses: ", len(poses)
-    P1 = np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)
-    if len(poses) >= 1:
-        for i in reversed(range(len(poses))):
-            print "inversing pose ", i
-            # the inverse of the pose matrix, i.e. [R | t]' = [R' | -R't]  
-            inv_r1 = np.linalg.inv(poses[i][:,:3])
-            t1 = poses[i][:,-1]
-            P1 = np.vstack((inv_r1, np.dot(-inv_r1, t1))).T
-            P1 = np.vstack((P1, np.array([0,0,0,1])))
-            inv_r2 = np.linalg.inv(poses[i-1][:,:3])
-            t2 = poses[i-1][:,-1]
-            P2 = np.vstack((inv_r2, np.dot(-inv_r2, t2))).T
-            P2 = np.vstack((P2, np.array([0,0,0,1])))
-            P1 = np.dot(P2, P1)
-        P1 = P1[:3]
+    P1 = poses[-1]
         
     # make sure E is rank 2
     U, S, V = np.linalg.svd(E)
@@ -226,10 +206,6 @@ def refine_points(norm_pts1, norm_pts2, E, mask, filtered_kp1, filtered_kp2):
     filtered_kp1 = filtered_kp1[mask.ravel()==1]
     filtered_kp2 = filtered_kp2[mask.ravel()==1]
 
-    # select only inlier points
-    norm_pts1 = norm_pts1[mask.ravel()==1]
-    norm_pts2 = norm_pts2[mask.ravel()==1]
-
     # convert to 1xNx2 arrays for cv2.correctMatches
     refined_pts1 = np.array([ [pt[0] for pt in norm_pts1 ] ])
     refined_pts2 = np.array([ [pt[0] for pt in norm_pts2 ] ])
@@ -247,15 +223,16 @@ def triangulate_points(P1, P2, refined_pts1, refined_pts2):
     # pick the P2 matrix with the most scene points in front of the cameras after triangulation
     ind = 0
     maxres = 0
+
+   # P2 = [ np.dot(np.vstack((P1, np.array([0,0,0,1]))), np.vstack((P, np.array([0,0,0,1]))))[:3] for P in P2 ]
+   # print type(P2[0])
+
     for i in range(4):
         # triangulate inliers and compute depth for each camera
         homog_3D = cv2.triangulatePoints(P1, P2[i], refined_pts1, refined_pts2)
         # the sign of the depth is the 3rd value of the image point after projecting back to the image
         d1 = np.dot(P1, homog_3D)[2]
         d2 = np.dot(P2[i], homog_3D)[2]
-        print "# d1: ", len(d1)
-        print "d1: ", d1
-        print "pts in front: ", sum(d1>0), sum(d2<0)
         
         if sum(d1>0) + sum(d2<0) > maxres:
             maxres = sum(d1>0) + sum(d2<0)
@@ -266,13 +243,18 @@ def triangulate_points(P1, P2, refined_pts1, refined_pts2):
     # homog_3D is a 4xN array of reconstructed points in homogeneous coordinates
     # pts_3D is a Nx3 array
     homog_3D = cv2.triangulatePoints(P1, P2[ind], refined_pts1, refined_pts2)
-    print "# homog_3D: ", homog_3D.shape[1]
     homog_3D = homog_3D[:, infront]
-    print "# homog_3D: ", homog_3D.shape[1]
     homog_3D = homog_3D / homog_3D[3]
     pts_3D = np.array(homog_3D[:3]).T
 
-    return homog_3D, pts_3D
+    return homog_3D, pts_3D, infront
+
+def filter_norm_pts(mask, infront, norm_pts1, norm_pts2):
+    norm_pts1 = norm_pts1[mask.ravel()==1]
+    norm_pts2 = norm_pts2[mask.ravel()==1]
+    norm_pts1 = norm_pts1[infront.ravel()==1]
+    norm_pts2 = norm_pts2[infront.ravel()==1]
+    return norm_pts1, norm_pts2
 
 def get_colours(img1, K1, K2, norm_pts1, norm_pts2, homog_3D):
     '''Extract RGB data from the original images and store them in new arrays.'''
@@ -305,7 +287,6 @@ def attach_indices(i, pts_3D, filtered_kp1, filtered_kp2, pt_cloud_indexed=[]):
         return False, None
 
     if pt_cloud_indexed == []:
-        print len(pts_3D)
         for num, pt in enumerate(pts_3D):
             new_pt = Point3D(pt, {i: filtered_kp1[num], i+1: filtered_kp2[num]})
             pt_cloud_indexed.append(new_pt)
@@ -340,7 +321,9 @@ def gen_pt_cloud(i, prev_sensor, image1, image2, poses):
     refined_pts1, refined_pts2, filtered_kp1, filtered_kp2 = refine_points(norm_pts1, norm_pts2, E, mask, filtered_kp1, filtered_kp2)
     
     print "    Triangulating 3D points..."
-    homog_3D, pts_3D = triangulate_points(P1, P2, refined_pts1, refined_pts2)
+    homog_3D, pts_3D, infront = triangulate_points(P1, P2, refined_pts1, refined_pts2)
+    norm_pts1, norm_pts2 = filter_norm_pts(mask, infront, norm_pts1, norm_pts2)
+
     print "    Extracting colour information..."
     img1_pts, img2_pts, img_colours = get_colours(img1, K1, K2, norm_pts1, norm_pts2, homog_3D)
     pt_cloud_indexed = attach_indices(i, pts_3D, filtered_kp1, filtered_kp2)
@@ -356,14 +339,13 @@ def scan_cloud(i, prev_kp, prev_des, prev_filter, filtered_kp, pt_cloud_indexed)
     indices_2D  = []
     matched_pts_2D = []
     matched_pts_3D = []
-    print "check lengths", len(prev_filter), len(filtered_kp), len(pt_cloud_indexed)
 
     for new_idx in filtered_kp:
         for old_idx in prev_filter:
             if new_idx == old_idx:
                 # found a match: a keypoint that contributed to both the last and current point clouds
                 indices_2D.append(new_idx)
-    print "# indices: ", len(indices_2D)
+
     for idx in indices_2D:
         # pt_cloud_indexed is a list of 3D points from the previous cloud with their keypoint indices
         for pt in pt_cloud_indexed:
@@ -380,16 +362,14 @@ def scan_cloud(i, prev_kp, prev_des, prev_filter, filtered_kp, pt_cloud_indexed)
 
     matched_pts_2D = np.array(matched_pts_2D, dtype='float32')
     matched_pts_3D = np.array(matched_pts_3D, dtype='float32')
-    print "# matched pts: ", matched_pts_2D.shape, matched_pts_3D.shape
 
     return matched_pts_2D, matched_pts_3D
 
 def compute_cam_pose(K1, matched_pts_2D, matched_pts_3D, poses):
     rvec, tvec = cv2.solvePnPRansac(matched_pts_3D, matched_pts_2D, K1, None)[0:2]
     rmat = cv2.Rodrigues(rvec)[0]
-    pose = np.vstack((np.hstack((rmat, tvec)), np.array([0,0,0,1])))
-    # convert to 3x4 matrix before appending
-    poses.append(pose[:3])
+    pose = np.hstack((rmat, tvec))
+    poses.append(pose)
     return poses
 
 def find_new_pts(i, prev_sensor, image1, image2, prev_kp, prev_des, prev_filter, poses, pt_cloud_indexed):
@@ -407,7 +387,6 @@ def find_new_pts(i, prev_sensor, image1, image2, prev_kp, prev_des, prev_filter,
 
     E, mask = find_essential_matrix(K1, norm_pts1, norm_pts2)
     refined_pts1, refined_pts2, filtered_kp1, filtered_kp2 = refine_points(norm_pts1, norm_pts2, E, mask, filtered_kp1, filtered_kp2)
-    
     print "    Scanning cloud..."
     matched_pts_2D, matched_pts_3D = scan_cloud(i, prev_kp, prev_des, prev_filter, filtered_kp1, pt_cloud_indexed)
     print "    Computing camera pose..."
@@ -415,66 +394,68 @@ def find_new_pts(i, prev_sensor, image1, image2, prev_kp, prev_des, prev_filter,
     P1, P2 = find_projection_matrices(E, poses)
 
     print "    Triangulating 3D points..."
-    homog_3D, pts_3D = triangulate_points(P1, P2, refined_pts1, refined_pts2)
+    homog_3D, pts_3D, infront = triangulate_points(P1, P2, refined_pts1, refined_pts2)
+    norm_pts1, norm_pts2 = filter_norm_pts(mask, infront, norm_pts1, norm_pts2)
+
     print "    Extracting colour information..."
     img1_pts, img2_pts, img_colours = get_colours(img1, K1, K2, norm_pts1, norm_pts2, homog_3D)
     updated_pt_cloud_indexed = attach_indices(i, pts_3D, filtered_kp1, filtered_kp2, pt_cloud_indexed)
 
     return sensor_i, new_kp, new_des, filtered_kp2, poses, homog_3D, pts_3D, img_colours, updated_pt_cloud_indexed
 
-def main():
+
+def start(images, filename=None):
     '''Loop through each pair of images, find point correspondences and generate 3D point cloud.
     Multiply each point cloud by the inverse of the camera matrices (camera poses) up to that point 
     to get the 3D point (as seen by camera 1) and append this point cloud to the overall point cloud.'''
-    load_filename = 'points/alcatraz1.txt'
+    prev_sensor = 0
+    poses = [np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)]
     save_format = 'txt'
+
+    for i in range(len(images)-1):
+        print images[i]
+        print "\n  Processing image %d and %d... " % (i+1, i+2)
+
+        if i == 0:
+            # first 2 images
+            prev_sensor, prev_kp, prev_des, prev_filter, homog_3D, pts_3D, img_colours, pt_cloud_indexed = gen_pt_cloud(i, prev_sensor, images[i], images[i+1], poses)
+            pt_cloud = np.array(pts_3D)
+            colours = np.array(img_colours)
+
+        elif i >= 1:
+            try:
+                prev_sensor, prev_kp, prev_des, prev_filter, poses, homog_3D, pts_3D, img_colours, pt_cloud_indexed = find_new_pts(i, prev_sensor, images[i], images[i+1], prev_kp, prev_des, prev_filter, poses, pt_cloud_indexed)
+                pt_cloud = np.vstack((pt_cloud, pts_3D))
+                colours = np.vstack((colours, img_colours))
+            except:
+                print "Error occurred in OpenCV."
+                break
+
+    # homog_pt_cloud = np.vstack((pt_cloud.T, np.ones(pt_cloud.shape[0])))
+    # draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
+    # draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
+    # draw.draw_projected_points(homog_pt_cloud, P)
+
+    save_points(images, pt_cloud, colours, filename)
+    # display_vtk.vtk_show_points(pt_cloud, list(colours))
+
+def extract_points(filename):
+    return np.loadtxt(filename)
+
+def sort_images(directory):
+    return sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'jpeg', 'png', 'pgm', 'ppm') ])
+
+def main():
+    load_filename = ''#points/ucd_building1_all.txt'
 
     if load_filename != '':
         load_points(load_filename)
     else:
-        # directory = 'images/ucd_building4_all'
-        # images = ['images/ucd_coffeeshack_all/00000002.JPG', 'images/ucd_coffeeshack_all/00000002.JPG', 'images/ucd_coffeeshack_all/00000003.JPG']
-        images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
-        # images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000001.jpg', 'images/ucd_building4_all/00000002.jpg']
-        # images = sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'png', 'pgm', 'ppm') ])
-        prev_sensor = 0
-        poses = [np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)]
-
-        for i in range(len(images)-1):
-            print "\n  Processing ", images[i].split('/')[2], "and ", images[i+1].split('/')[2]
-
-            if i == 0:
-                # first 2 images
-                prev_sensor, prev_kp, prev_des, prev_filter, homog_3D, pts_3D, img_colours, pt_cloud_indexed = gen_pt_cloud(i, prev_sensor, images[i], images[i+1], poses)
-                pt_cloud = np.array(pts_3D)
-                colours = np.array(img_colours)
-
-            elif i >= 1:
-                try:
-                    prev_sensor, prev_kp, prev_des, prev_filter, poses, homog_3D, pts_3D, img_colours, pt_cloud_indexed = find_new_pts(i, prev_sensor, images[i], images[i+1], prev_kp, prev_des, prev_filter, poses, pt_cloud_indexed)
-                    print "prev kp: ", len(prev_kp), len(prev_des)
-                    pt_cloud = np.vstack((pt_cloud, pts_3D))
-                    colours = np.vstack((colours, img_colours))
-                    print pt_cloud.shape
-                    print colours.shape
-                except:
-                    print "Error occurred."
-                    break
-
-        # homog_pt_cloud = np.vstack((pt_cloud.T, np.ones(pt_cloud.shape[0])))
-
-        # draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
-        # draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
-        # draw.draw_projected_points(homog_pt_cloud, P)
-
-        save_points(images, pt_cloud, colours, save_format)
-        # np.savetxt('points/ucd_building6_pts.txt', [pt for pt in pt_cloud])
-        # np.savetxt('points/ucd_building6_col.txt', [pt for pt in colours])
-        # pt_cloud = np.loadtxt('points/ucd_building4_pts.txt')
-        # colours = np.loadtxt('points/ucd_building4_col.txt')
-
-        # draw.display_pyglet(pt_cloud, colours)
-        display_vtk.vtk_show_points(pt_cloud, list(colours))
+        directory = 'images/ucd_building4_all'
+        # images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
+        images = sort_images(directory)
+        start(images)
 
 
-main()
+if __name__ == "__main__":
+    main()

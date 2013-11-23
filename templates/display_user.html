@@ -1,23 +1,32 @@
 {% extends 'base.html' %}
 {% block body %}
-
-    <h2>Upload photos</h2>
-    <br>
-    <h3><div class='dragAndDrop_off' id ='dragAndDropHandler'> Drag and drop photos here</div></h3>
-    <div id='uploadStatus'></div>
-    <br>
-
-    <h2>Uploaded photos</h2><br>
-    {% for photo in photos %}
-    <div class='thumbnail'><img src="/static/uploads/{{photo}}" ></div>
+    
+    <h2>My point clouds</h2>
+    <div id='clouds'></div><br>
+    {% for cloud in clouds %}
+        <div class='cloud'></div>
     {% endfor %}
-    <br>
+
+    <div>
+        <h2>Upload photos</h2>
+        <br>
+        <div class='dropbox'>
+            <div class='text'>Drag images here</div>
+        </div>
+        <br>
+
+        <h2 id='select'>Select photos</h2><br>
+        <button id='startbtn'>Start!</button>
+        <div id='preview'></div>
+        </div>
+        <br>
 
     {% if username %}
-        <h2>My point cloud</h2><br>
+        <h2 class='visualize'>My point cloud</h2>
     {% else %}
-        <h2>Visualize point cloud</h2><br>
+        <h2 class='visualize'>Visualize point cloud</h2>
     {% endif %}
+    
     <div id='viewer'></div>
 
 {% endblock %}
