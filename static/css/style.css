@@ -2,12 +2,6 @@ a:hover { /* for links in navbar */
     color: #E3A71B;
 }
 
-.cloud { /*  */
-    clear: both;
-    width: 200px;
-    opacity: 0.5;
-}
-
 .selected { /*  */
     background-color: #C5D4D9;
 }
@@ -16,14 +10,14 @@ a:hover { /* for links in navbar */
     background-color: #D0DCE0;
 }
 
-.selected>img { /*  */
-    float: left;
-    width: 100px;
-    opacity: 1;
+.cloud {
+    overflow: hidden;
 }
 
-.cloud-info { /* for name and creation dates of past point cloud */
-    color: black;
+.desc {
+    clear: both;
+    padding-top: 10px;
+    font-size: 15px;
 }
 
 .thumbnail { /* for thumbnails of photos used to reconstruct past point cloud */
@@ -77,7 +71,7 @@ a:hover { /* for links in navbar */
     margin-bottom: 50px;
 }
 
-img { /* for preview images that can be selected */
+.preview { /* for preview images that can be selected */
     float: left;
     width: 200px;
     opacity: 0.5;

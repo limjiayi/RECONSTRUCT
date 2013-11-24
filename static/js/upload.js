@@ -38,7 +38,7 @@ function handleFiles(files) {
     for (var i = 0; i < files.length; i++) {
         var file = files[i];
         var imageType = /image.*/;
-        var $img = $('<img src="" width="200" />');
+        var $img = $('<img class="preview" src="" width="200" />');
         $('#preview').append($img);
 
         $img.click( function() {
@@ -164,21 +164,18 @@ function pastClouds() {
                         console.log('No previous point clouds found.');
                     } else {
                         console.log('Found past clouds.');
-                        console.log('Data: ' + data);
-                        console.log('Data 0: ' + data.path);
                         //display the previous point clouds
-                        for (var i=0; i < data.length; i++) {
-                            for (var key in data[i]) {
-                                var $div = $('<div class="cloud" id="' + key + '">' + key + '</div>'); // name of cloud
-                                $('cloud').click( function() { // bind event listener
-                                    var loadbtn = $('<button class="loadbtn on" id="' + key + '">Load</button>');
-                                    div.append($loadbtn);
-                                    chooseCloud();
-                                });
-                                for (var j=0; j < data[i][key].length; j++) {
-                                    var $photo = $('<img class="thumbnail" src="' + data[i][key][j] + '"> </img>');
-                                    clouds_div.append($photo);
-                                }
+                        for (var key in data) {
+                            var $div = $('<div class="cloud" data-cloud-id="' + data[key][0]['cloud_id'] + '"><div class="desc">Name: ' + key + '</div></div>'); // name of cloud
+                            $('#clouds').append($div);
+                            $('.cloud').click( function() { // bind event listener
+                                var loadbtn = $('<button class="loadbtn on">Load</button>');
+                                $div.append($loadbtn);
+                                // chooseCloud();
+                            });
+                            for (var i=0; i < data[key].length; i++) {
+                                var $photo = $('<img class="thumbnail" src="' + data[key][i]['path'] + '/' + data[key][i]['filename'] + '">');
+                                $div.append($photo);
                             }
                         }
                     }

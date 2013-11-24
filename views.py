@@ -104,7 +104,8 @@ def get_past_clouds(user_id):
     if user_id:
         clouds = model_session.query(model.User).filter_by(id=user_id).first().clouds
         if clouds != "":
-            clouds_d = {"clouds": [c.to_dict() for c in clouds]}
+            clouds_d = dict( (cloud.name, [ photo.to_dict() for photo in cloud.photos ]) for cloud in clouds )
+            # clouds_d = {"clouds": [c.to_dict() for c in clouds]}
             print "clouds: ", clouds_d
             return jsonify(clouds_d)
     return None
