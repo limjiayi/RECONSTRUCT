@@ -1,5 +1,5 @@
 from flask import Flask, render_template, redirect, request, g, session, url_for, flash, jsonify
-from sqlalchemy import desc
+from sqlalchemy import desc, update
 import os
 import config
 import forms
@@ -21,7 +21,7 @@ def index():
     else:
         return render_template('index.html', username=username)
 
-@app.route('/upload', methods=['GET', 'POST'])
+@app.route('/upload', methods=['POST'])
 def upload():
     username = session.get('username')
     if username:
@@ -29,11 +29,11 @@ def upload():
     else:
         user_id = 0
 
-    if request.method == 'POST':
-        f_keys = request.form.keys()
-        pattern = re.compile(r'^data:image/(png|jpeg|jpg);base64,(.*)$')
-        raw_data = []
-        for key in f_keys:
+    f_keys = request.form.keys()
+    pattern = re.compile(r'^data:image/(png|jpeg|jpg);base64,(.*)$')
+    raw_data = []
+    for key in f_keys:
+        if key != 'cloud_name':
             match = pattern.match(request.form[key])
             if match is None:
                 raise ValueError('Invalid image data.')
@@ -42,59 +42,67 @@ def upload():
             file_data = base64.b64decode(match.group(2))
             raw_data.append(file_data)
 
-        user_path = 'static/uploads/%d' % user_id
-        if not os.path.exists(user_path):
-            # user doesn't have his/her own directory yet, so create one
-            os.mkdir(user_path)
-        folders = os.listdir(user_path)
-        if folders == []:
-            last_id = 0
-        else:
-            last_id = max(folders)
-        path = user_path + '/' + str(int(last_id)+1)
+    user_path = 'static/uploads/%d' % user_id
+    if not os.path.exists(user_path):
+        # user doesn't have his/her own directory yet, so create one
+        os.mkdir(user_path)
 
-        # create a new directory inside the user's directory for uploaded photos
-        if not os.path.exists(path):
-            os.mkdir(path)
-        for idx, d in enumerate(raw_data):
-            filename = '{}.{}'.format(len(raw_data)-idx, match.group(1))
-            with open(path + '/' + filename, 'wb') as f:
-                f.write(d)
+    cloud_name = request.form['cloud_name']
 
-        folders = os.listdir('static/uploads/%d' % user_id)
-        last_id = max(folders)
-        path = 'static/uploads/%d/%s' % (user_id, last_id)
-        print path + '/' + os.listdir(path)[0]
+    # save cloud to database
+    new_cloud = model.Cloud(user_id=user_id, name=cloud_name)
+    model_session.add(new_cloud)
+    model_session.commit()
+    model_session.refresh(new_cloud)
 
-        images = sorted(path + '/' + img for img in os.listdir(path) if img.rpartition('.')[2].lower() in ('jpg', 'jpeg', 'png'))
-        print "images: ", images
-        points_path = os.path.abspath(os.path.join(path, "points"))
-        os.mkdir(points_path)
-        print "points path: ", points_path
-        reconstruct.start(images, points_path)
+    cloud_id = model_session.query(model.Cloud.id).order_by(desc(model.Cloud.id)).first()[0]
 
-        # save cloud to database
-        new_cloud = model.Cloud(user_id=user_id, path=path)
-        model_session.add(new_cloud)
+    # create a new directory inside the user's directory for uploaded photos
+    path = user_path + '/' + str(cloud_id)
+    if not os.path.exists(path):
+        os.mkdir(path)
+
+    for idx, d in enumerate(raw_data):
+        filename = '{}.{}'.format(len(raw_data)-idx, match.group(1))
+        with open(path + '/' + filename, 'wb') as f:
+            f.write(d)
+
+    path = 'static/uploads/%d/%s' % (user_id, cloud_id)
+
+    images = sorted(path + '/' + img for img in os.listdir(path) if img.rpartition('.')[2].lower() in ('jpg', 'jpeg', 'png'))
+    print "images: ", images
+    points_path = os.path.abspath(os.path.join(path, "points"))
+    print "pts path: ", points_path
+    reconstruct.start(images, points_path)
+    points = str(reconstruct.extract_points(points_path + ".txt"))
+
+    # set the path to the text file storing the 3D points of the cloud
+    cloud = model_session.query(model.Cloud).filter_by(id=cloud_id).first()
+    cloud.path = path
+    model_session.commit()
+
+    # save photos to database
+    photos = [ img for img in os.listdir(path) if img.rpartition('.')[2].lower() in ('jpg', 'jpeg', 'png') ]
+
+    for photo in photos:
+        new_photo = model.Photo(filename=photo, path=path, cloud_id=cloud_id)
+        model_session.add(new_photo)
         model_session.commit()
-        model_session.refresh(new_cloud)
+        model_session.refresh(new_photo)
 
-        cloud_id = model_session.query(model.Cloud.id).filter_by(user_id=user_id).\
-                                order_by(desc(model.Cloud.id)).first()
+    return points
 
-        # save photos to database
-        photos = os.listdir(path)
+@app.route('/cloud/<id>')
+def get_cloud(id):
+    cloud_id = id
+    data = model_session.query(model.Cloud).filter_by(id=cloud_id).first().data
+    return data
 
-        for photo in photos:
-            new_photo = model.Photo(filename=photo, path=path, cloud_id=cloud_id)
-            model_session.add(new_photo)
-            model_session.commit()
-            model_session.refresh(new_photo)
-
-    elif request.method == 'GET':
-        points = reconstruct.extract_points(points_path + ".txt")
-        return points
-
+@app.route('/past/<id>')
+def get_past_clouds(id):
+    user_id = id
+    clouds = model_session.query(model.User).filter_by(id=user_id).first().clouds
+    return clouds
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -144,8 +152,9 @@ def logout():
 @app.route('/<username>')
 def display_user(username):
     username = session.get('username')
-    clouds = model.query(model.User).filter_by(username=username).first().clouds
-    return render_template('display_user.html', username=username, clouds=clouds)
+    if username:
+        user_id = model_session.query(model.User).filter_by(username=username).first().id
+        return render_template('display_user.html', username=username, user_id=user_id)
 
 
 if __name__ == "__main__":

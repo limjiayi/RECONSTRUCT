@@ -3,8 +3,19 @@
 }
 
 .cloud {
+    clear: both;
     width: 200px;
     opacity: 0.5;
+}
+
+a {
+    color: #103F7D;
+    font-size: 100%
+}
+
+.photo {
+    float: left;
+    width: 100px;
 }
 
 .dropbox {
@@ -65,6 +76,10 @@ img {
 
 h2:hover {
     color: #103F7D;
+}
+
+input {
+    display: block;
 }
 
 .startbtn {

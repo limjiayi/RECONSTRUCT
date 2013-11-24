@@ -48,28 +48,38 @@ function handleFiles(files) {
         reader.readAsDataURL(file);
     }
     button = document.getElementsByClassName('startbtn');
+    field = document.getElementsByTagName('input');
+    if (field.length === 0) {
+        $field = $('<form><input id="field" type="text" name="cloud_name" placeholder="Type a name for your point cloud."></form>');
+        $('#preview').append($field);
+    }
     if (button.length === 0) {
         $button = $('<button class="startbtn">Start!</button>');
         $('#preview').append($button);
     }
-    startEnable();
+    // startEnable();
 }
 
 function startEnable() {
-    $('.startbtn').bind('click', function() {
-        $('startbtn').addClass('on');
+  $(document).on("click", ".startbtn", function() {
+        $('.startbtn').addClass('on');
         console.log('clicked start');
         var selectedPhotos = [];
         var photos = document.getElementsByClassName('checked');
         if (photos.length < 2) {
             alert('Minimum of 2 photos required.');
         } else {
-            for (var i=0; i < photos.length; i++) {
+            var input = document.getElementById('field').value;
+            if (input === '') {
+                alert('Please input a name for your point cloud.');
+            } else {
+                for (var i=0; i < photos.length; i++) {
                 selectedPhotos.push(photos[i].src);
+                }
+                console.log('# photos: ', photos.length);
+                sendFiles(selectedPhotos);
+                startDisable();
             }
-            console.log('# photos: ', photos.length);
-            sendFiles(selectedPhotos);
-            startDisable();
         }
    });
 }
@@ -85,6 +95,8 @@ function sendFiles(photos) {
     for (var i=0; i < photos.length; i++) {
         formData.append('photo['+i+']', photos[i]);
     }
+    var input = document.getElementById('field').value;
+    formData.append('cloud_name', input);
     uploadFiles(formData);
 }
 
@@ -113,17 +125,51 @@ function uploadFiles(formData) {
         data: formData,
         success: function(data){
             console.log('Successfully uploaded files.');
+            load_cloud(data);
         }
     });
-    load_cloud();
 }
 
 function chooseCloud() {
-    clouds = documents.getElementsByClassName('cloud');
-    for (var i=0; i < clouds.length; i++) {
-        $('.cloud').bind('click', function() {
-            $(this).addClass('selected');
-            load_cloud();
+    $('.cloud a').bind('click', function() {
+        $(this).addClass('selected');
+        cloud_id = $(this).attr('data-cloud-id');
+
+        $.ajax( {
+            url: '/cloud/' + cloud_id,
+            type: 'GET',
+            async: true,
+            dataType: 'text',
+            success: function(data) {
+                if (data === null) {
+                    alert('Loading of point cloud failed.');
+                } else {
+                    load_cloud(data);
+                }
+            }
         });
-    }
+    });
 }
+
+function pastClouds() {
+    var cloud_div = document.getElementById('cloud');
+    user_id = getAttribute('data-user-id');
+
+    $.ajax( {
+        url: '/display_user/' + user_id,
+        type: 'GET',
+        async: true,
+        dataType: 'text',
+        success: function(data) {
+            if (data === null) {
+                alert('Loading of point cloud failed.');
+            } else {
+                load_cloud(data);
+            }
+        }
+    });
+}
+
+jQuery(function(){
+  startEnable();
+});

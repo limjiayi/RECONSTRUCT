@@ -4,7 +4,7 @@ from datetime import datetime
 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine, ForeignKey
-from sqlalchemy import Column, Integer, String, DateTime, Text
+from sqlalchemy import Column, Integer, String, DateTime, Text, LargeBinary
 from sqlalchemy.orm import sessionmaker, scoped_session, relationship, backref
 from flask.ext.login import UserMixin
 
@@ -42,7 +42,7 @@ class Cloud(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(64), nullable=True)
-    path = Column(String(256), nullable=False)
+    path = Column(String(256), nullable=True)
     created_on = Column(DateTime, nullable=False, default=datetime.now)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     photos = relationship('Photo', backref='cloud', uselist=True) # cloud.photos, photo.cloud
