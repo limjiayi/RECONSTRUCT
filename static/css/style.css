@@ -1,30 +1,44 @@
-.navbar>li>a:hover {
+a:hover { /* for links in navbar */
     color: #E3A71B;
 }
 
-.cloud {
+.cloud { /*  */
     clear: both;
     width: 200px;
     opacity: 0.5;
 }
 
-.cloud-info {
-    color: black;
+.selected { /*  */
+    background-color: #C5D4D9;
 }
 
-.thumbnail {
-    float: left;
-    width: 100px;
-    opacity: 0.5;
+.selected:hover { /*  */
+    background-color: #D0DCE0;
 }
 
-.thumbnail.on {
+.selected>img { /*  */
     float: left;
     width: 100px;
     opacity: 1;
 }
 
-.dropbox {
+.cloud-info { /* for name and creation dates of past point cloud */
+    color: black;
+}
+
+.thumbnail { /* for thumbnails of photos used to reconstruct past point cloud */
+    float: left;
+    width: 100px;
+    opacity: 0.5;
+}
+
+.thumbnail.on { /* for thumbnails of photos used to reconstruct past point clouds, when parent div has been clicked on */
+    float: left;
+    width: 100px;
+    opacity: 1;
+}
+
+.dropbox { /* for dropbox when nothing is being dragged inside */
     position: relative;
     border: 2px dotted #414542;
     width: 100%;
@@ -35,7 +49,7 @@
     font-weight: bold;
 }
 
-.dropbox.on {
+.dropbox.on { /* for dropbox when something is being dragged inside */
     position: relative;
     border: 2px dotted #356585;
     width: 100%;
@@ -47,7 +61,7 @@
     font-weight: bold;
 }
 
-.text {
+.text { /* for text inside dropbox */
     position: absolute;
     top: 50%;
     left: 50%;
@@ -57,43 +71,49 @@
     text-align: center;
 }
 
-#preview {
+#preview { /*  */
     clear: both;
     width: 100%;
     margin-bottom: 50px;
 }
 
-img {
+img { /* for preview images that can be selected */
     float: left;
     width: 200px;
     opacity: 0.5;
     margin: 0 10 30 0;
 }
 
-.checked {
+.checked { /*  */
     float: left;
     width: 200px;
     margin: 0 10 30 0;
     opacity: 1;
 }
 
-.visualize {
+.visualize { /*  */
     clear: both;
     margin-bottom: 30px;
 }
 
-h2:hover {
+h2:hover { /* for headings */
     color: #103F7D;
 }
 
-input {
+#field { /* for input field where user chooses a name for the cloud */
     float: left;
     width: 300px;
     height: 30px;
     font-size: 15px;
 }
 
-.loadbtn {
+input { /* for input fields on register and login pages */
+    width: 300px;
+    height: 30px;
+    font-size: 15px;
+}
+
+.loadbtn { /* for button to load previous point cloud */
     float: left;
     width: 100px;
     height: 30px;
@@ -104,7 +124,7 @@ input {
     font-size: 15px;
 }
 
-.on {
+.on { /* for start and load buttons when clickable */
     float: left;
     width: 100px;
     height: 30px;
@@ -115,22 +135,22 @@ input {
     font-size: 15px;
 }
 
-.startbtn {
+.startbtn { /* for button to start reconstruction */
     float: left;
     width: 100px;
     height: 30px;
     margin-left: 10px;
-    background: #707980;
+    background: #294C7D;
     color: white;
     font-family: Helvetica, Arial, Sans-Serif;
     font-size: 15px;
 }
 
-#empty {
+#empty { /*  */
     clear: both;
     height: 10px;
 }
 
-canvas {
+canvas { /* for ThreeJS viewer */
     background-color: #292825;
 }

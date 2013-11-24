@@ -9,7 +9,7 @@ var VIEW_ANGLE = 70, ASPECT = WIDTH / HEIGHT,
 	NEAR = 0.001, FAR = 10000;
 
 // set size of the particles
-var particleSize = 0.005;
+var particleSize = 0.003;
 
 // keep track of the mouse position
 var mouseX = 0, mouseY = 0;
@@ -65,6 +65,7 @@ function animate() {
 }
 
 function load_cloud(data) {
+	console.log('Loading cloud');
 	model = new THREE.Geometry();
 	model.dynamic = true;
 
@@ -96,17 +97,17 @@ function load_cloud(data) {
 		if (z < min_z) {min_z = z;}
 		if (z > max_z) {max_z = z;}
 
-		var colour = 'rgb(' + pt[3] + ',' + pt[4] + ',' + pt[5] + ')';
+		var colour = 'rgb(' + parseFloat(pt[3]) + ',' + parseFloat(pt[4]) + ',' + parseFloat(pt[5]) + ')';
 		model.vertices.push( new THREE.Vector3(x, y, z) );
 		colours.push( new THREE.Color(colour) );
 	}
-	console.log('colours: ', colours);
 	model.colors = colours;
 
 	// load model
 	var material = new THREE.ParticleBasicMaterial({ size: particleSize, vertexColors: true });
 	particles = new THREE.ParticleSystem(model, material);
 	scene.add(particles);
+	console.log('Loaded model');
 }
 
 function clear() {

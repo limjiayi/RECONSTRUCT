@@ -23,7 +23,7 @@ class User(Base, UserMixin):
     username = Column(String(64), nullable=False)
     password = Column(String(64), nullable=False)
     salt = Column(String(64), nullable=False)
-    clouds = relationship('Cloud', backref='author', uselist=True) # user.clouds, cloud.author
+    clouds = relationship('Cloud', backref=backref('author', uselist=True)) # user.clouds, cloud.author
 
     def set_password(self, password):
         self.salt = bcrypt.gensalt()
@@ -37,6 +37,9 @@ class User(Base, UserMixin):
     def get_id(self):
         return unicode(self.id)
 
+    def to_dict(self):
+        return dict((c.name, getattr(self, c.name)) for c in self.__table__.columns)
+
 class Cloud(Base):
     __tablename__ = 'clouds'
 
@@ -45,7 +48,10 @@ class Cloud(Base):
     path = Column(String(256), nullable=True)
     created_on = Column(DateTime, nullable=False, default=datetime.now)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    photos = relationship('Photo', backref='cloud', uselist=True) # cloud.photos, photo.cloud
+    photos = relationship('Photo', backref=backref('cloud', uselist=True)) # cloud.photos, photo.cloud
+
+    def to_dict(self):
+        return dict((c.name, str(getattr(self, c.name))) for c in self.__table__.columns)
 
 class Photo(Base):
     __tablename__ = 'photos'
@@ -55,6 +61,9 @@ class Photo(Base):
     path = Column(String(256), nullable=False)
     uploaded_on = Column(DateTime, nullable=False, default=datetime.now)
     cloud_id = Column(Integer, ForeignKey('clouds.id'), nullable=False)
+
+    def to_dict(self):
+        return dict((c.name, str(getattr(self, c.name))) for c in self.__table__.columns)
 
 ### End of class declarations ###
 

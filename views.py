@@ -103,15 +103,10 @@ def get_cloud(id):
 def get_past_clouds(user_id):
     if user_id:
         clouds = model_session.query(model.User).filter_by(id=user_id).first().clouds
-        names = [ cloud.name for cloud in clouds ]
-        photos = [ [ photo.path + photo.filename for photo in cloud.photos ] for cloud in clouds ]
         if clouds != "":
-            # clouds_d = dict(zip(names, photos))
-            clouds_d = {}
-            for idx, cloud in enumerate(clouds):
-                clouds_d[ names[idx] ] = [ photo.path + photo.filename for photo in cloud.photos ]
-            print clouds_d
-            return json.dumps(clouds_d)
+            clouds_d = {"clouds": [c.to_dict() for c in clouds]}
+            print "clouds: ", clouds_d
+            return jsonify(clouds_d)
     return None
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -146,12 +141,16 @@ def login():
     else:
         username = request.form.get('username')
         password = request.form.get('password')
-        user = model_session.query(model.User).filter_by(username=username).one()
-        if user.authenticate(password):
-            session['username'] = username
-            return redirect(url_for('display_user', username=username))
-        else:
-            flash('The username or password is incorrect. Please try again.')
+        try:
+            user = model_session.query(model.User).filter_by(username=username).one()
+            if user.authenticate(password):
+                session['username'] = username
+                return redirect(url_for('display_user', username=username))
+            else:
+                flash('The username or password is incorrect. Please try again.')
+                return redirect(url_for('login'))
+        except:
+            flash('This user does not exist.')
             return redirect(url_for('login'))
 
 @app.route('/logout')
@@ -162,11 +161,14 @@ def logout():
 @app.route('/<username>')
 def display_user(username):
     username = session.get('username')
+    print username
     if username:
-        user_id = model_session.query(model.User).filter_by(username=username).first().id
-        clouds = model_session.query(model.User).filter_by(id=user_id).first().clouds
-        return render_template('display_user.html', username=username, user_id=user_id, clouds=clouds)
-
+        try:
+            user_id = model_session.query(model.User).filter_by(username=username).first().id
+            clouds = model_session.query(model.User).filter_by(id=user_id).first().clouds
+            return render_template('display_user.html', username=username, user_id=user_id, clouds=clouds)
+        except:
+            return redirect(url_for('login'))
 
 if __name__ == "__main__":
     app.run(debug=True)

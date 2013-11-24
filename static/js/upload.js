@@ -61,7 +61,6 @@ function handleFiles(files) {
 
 function startEnable() {
   $(document).on("click", ".startbtn", function() {
-        // $('.startbtn').removeClass('on');
         console.log('clicked start');
         var selectedPhotos = [];
         var photos = document.getElementsByClassName('checked');
@@ -77,17 +76,16 @@ function startEnable() {
                 }
                 console.log('# photos: ', photos.length);
                 sendFiles(selectedPhotos);
-                startDisable();
             }
         }
    });
 }
 
-function startDisable() {
-    $('img').unbind('click');
-    $('.startbtn').unbind('click');
-    $('.startbtn').removeClass('on');
-}
+// function startDisable() {
+//     $('img').unbind('click');
+//     $('.startbtn').unbind('click');
+//     $('.startbtn').removeClass('on');
+// }
 
 function sendFiles(photos) {
     formData = new FormData();
@@ -167,7 +165,7 @@ function pastClouds() {
                     } else {
                         console.log('Found past clouds.');
                         console.log('Data: ' + data);
-                        console.log('Data 0: ' + data[0]);
+                        console.log('Data 0: ' + data.path);
                         //display the previous point clouds
                         for (var i=0; i < data.length; i++) {
                             for (var key in data[i]) {
@@ -176,7 +174,7 @@ function pastClouds() {
                                     var loadbtn = $('<button class="loadbtn on" id="' + key + '">Load</button>');
                                     div.append($loadbtn);
                                     chooseCloud();
-                                }
+                                });
                                 for (var j=0; j < data[i][key].length; j++) {
                                     var $photo = $('<img class="thumbnail" src="' + data[i][key][j] + '"> </img>');
                                     clouds_div.append($photo);
