@@ -6,10 +6,10 @@ var viewer, camera, scene, renderer, ambient, sphere, controls;
 
 // set some camera attributes
 var VIEW_ANGLE = 70, ASPECT = WIDTH / HEIGHT,
-	NEAR = 0.0001, FAR = 10000;
+	NEAR = 0.001, FAR = 10000;
 
 // set size of the particles
-var particleSize = 0.001;
+var particleSize = 0.005;
 
 // keep track of the mouse position
 var mouseX = 0, mouseY = 0;
@@ -21,10 +21,11 @@ function onLoad() {
 
 function initScene() {
 	viewer = document.getElementById('viewer');
-
-	renderer = new THREE.WebGLRenderer( { antialias: true } );
-	renderer.setSize( WIDTH, HEIGHT );
-	viewer.appendChild( renderer.domElement );
+	if (viewer !== null) {
+		renderer = new THREE.WebGLRenderer( { antialias: true } );
+		renderer.setSize( WIDTH, HEIGHT );
+		viewer.appendChild( renderer.domElement );
+	}
 
 	// this is the scene all objects will be added to
 	scene = new THREE.Scene();
@@ -33,11 +34,11 @@ function initScene() {
 	scene.add( ambient );
 
 	camera = new THREE.PerspectiveCamera(VIEW_ANGLE, ASPECT, NEAR, FAR);
-	camera.position.z = 500;
+	camera.position.z = 2;
 	// scene.add( camera );
 
 	// set the camera's behaviour and sensitivity
-	controls = new THREE.TrackballControls( camera, viewer );
+	controls = new THREE.OrbitControls( camera, viewer );
 	controls.rotateSpeed = 5.0;
 	controls.zoomSpeed = 5;
 	controls.panSpeed = 2;
@@ -69,7 +70,7 @@ function load_cloud(data) {
 
 	// points are stored in a giant string, with 1 point on each line: x y z r g b, separated by whitespace
 	var cloud = data.split('\n');
-	console.log(cloud);
+	console.log(cloud.length);
 
 	// initialize min and max coords
 	min_x = 0;
@@ -85,7 +86,7 @@ function load_cloud(data) {
 	for (var i=0; i<cloud.length; i++) {
 		var pt = cloud[i].split(" ");
 		var x = parseFloat(pt[0]);
-		var y = parseFloat(pt[1]);
+		var y = -parseFloat(pt[1]);
 		var z = parseFloat(pt[2]);
 
 		if (x < min_x) {min_x = x;}
@@ -99,10 +100,15 @@ function load_cloud(data) {
 		model.vertices.push( new THREE.Vector3(x, y, z) );
 		colours.push( new THREE.Color(colour) );
 	}
+	console.log('colours: ', colours);
 	model.colors = colours;
 
 	// load model
 	var material = new THREE.ParticleBasicMaterial({ size: particleSize, vertexColors: true });
 	particles = new THREE.ParticleSystem(model, material);
 	scene.add(particles);
+}
+
+function clear() {
+	
 }

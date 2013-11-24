@@ -1,7 +1,9 @@
 var dropbox = document.getElementsByClassName('dropbox')[0];
-dropbox.addEventListener('dragenter', dragenter, false);
-dropbox.addEventListener('dragover', dragover, false);
-dropbox.addEventListener('drop', drop, false);
+if (dropbox !== undefined) {
+    dropbox.addEventListener('dragenter', dragenter, false);
+    dropbox.addEventListener('dragover', dragover, false);
+    dropbox.addEventListener('drop', drop, false);
+}
 
 function dragenter(e) {
     e.stopPropagation();
@@ -23,6 +25,16 @@ function drop(e) {
 }
 
 function handleFiles(files) {
+    button = document.getElementsByClassName('startbtn');
+    field = document.getElementsByTagName('input');
+    if (field.length === 0) {
+        $field = $('<form><input id="field" type="text" name="cloud_name" placeholder="Type a name for your point cloud."></form>');
+        $('#preview').append($field);
+    }
+    if (button.length === 0) {
+        $button = $('<button class="startbtn on">Start!</button><div id="empty"></div>');
+        $('#preview').append($button);
+    }
     for (var i = 0; i < files.length; i++) {
         var file = files[i];
         var imageType = /image.*/;
@@ -32,11 +44,9 @@ function handleFiles(files) {
         $img.click( function() {
             $(this).toggleClass('checked');
         });
-
         if (!file.type.match(imageType)) {
             console.log("File is not an image!", imageType);
         }
-     
         // create thumbnails of the selected photos
         // photos are stored on disk
         var reader = new FileReader();
@@ -47,22 +57,11 @@ function handleFiles(files) {
         })($img.get(0));
         reader.readAsDataURL(file);
     }
-    button = document.getElementsByClassName('startbtn');
-    field = document.getElementsByTagName('input');
-    if (field.length === 0) {
-        $field = $('<form><input id="field" type="text" name="cloud_name" placeholder="Type a name for your point cloud."></form>');
-        $('#preview').append($field);
-    }
-    if (button.length === 0) {
-        $button = $('<button class="startbtn">Start!</button>');
-        $('#preview').append($button);
-    }
-    // startEnable();
 }
 
 function startEnable() {
   $(document).on("click", ".startbtn", function() {
-        $('.startbtn').addClass('on');
+        // $('.startbtn').removeClass('on');
         console.log('clicked start');
         var selectedPhotos = [];
         var photos = document.getElementsByClassName('checked');
@@ -131,7 +130,7 @@ function uploadFiles(formData) {
 }
 
 function chooseCloud() {
-    $('.cloud a').bind('click', function() {
+    $('.cloud').bind('click', function() {
         $(this).addClass('selected');
         cloud_id = $(this).attr('data-cloud-id');
 
@@ -152,24 +151,47 @@ function chooseCloud() {
 }
 
 function pastClouds() {
-    var cloud_div = document.getElementById('cloud');
-    user_id = getAttribute('data-user-id');
-
-    $.ajax( {
-        url: '/display_user/' + user_id,
-        type: 'GET',
-        async: true,
-        dataType: 'text',
-        success: function(data) {
-            if (data === null) {
-                alert('Loading of point cloud failed.');
-            } else {
-                load_cloud(data);
-            }
+    $(document).ready(function() {
+        console.log('running pastClouds');
+        var clouds_div = document.getElementById('clouds');
+        if (clouds_div !== null) {
+            user_id = $('#clouds').attr('data-user-id');
+            $.ajax( {
+                url: '/past/' + user_id,
+                type: 'GET',
+                async: true,
+                dataType: 'json',
+                success: function(data) {
+                    if (data === null) {
+                        console.log('No previous point clouds found.');
+                    } else {
+                        console.log('Found past clouds.');
+                        console.log('Data: ' + data);
+                        console.log('Data 0: ' + data[0]);
+                        //display the previous point clouds
+                        for (var i=0; i < data.length; i++) {
+                            for (var key in data[i]) {
+                                var $div = $('<div class="cloud" id="' + key + '">' + key + '</div>'); // name of cloud
+                                $('cloud').click( function() { // bind event listener
+                                    var loadbtn = $('<button class="loadbtn on" id="' + key + '">Load</button>');
+                                    div.append($loadbtn);
+                                    chooseCloud();
+                                }
+                                for (var j=0; j < data[i][key].length; j++) {
+                                    var $photo = $('<img class="thumbnail" src="' + data[i][key][j] + '"> </img>');
+                                    clouds_div.append($photo);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
         }
     });
 }
 
-jQuery(function(){
+
+jQuery(function() {
   startEnable();
+  pastClouds();
 });

@@ -8,19 +8,26 @@
     opacity: 0.5;
 }
 
-a {
-    color: #103F7D;
-    font-size: 100%
+.cloud-info {
+    color: black;
 }
 
-.photo {
+.thumbnail {
     float: left;
     width: 100px;
+    opacity: 0.5;
+}
+
+.thumbnail.on {
+    float: left;
+    width: 100px;
+    opacity: 1;
 }
 
 .dropbox {
     position: relative;
     border: 2px dotted #414542;
+    width: 100%;
     height: 200px;
     color: #92AAB0;
     margin-bottom: 10px;
@@ -31,6 +38,7 @@ a {
 .dropbox.on {
     position: relative;
     border: 2px dotted #356585;
+    width: 100%;
     height: 200px;
     color: black;
     background-color: #C5D4D9;
@@ -79,27 +87,48 @@ h2:hover {
 }
 
 input {
-    display: block;
+    float: left;
+    width: 300px;
+    height: 30px;
+    font-size: 15px;
 }
 
-.startbtn {
+.loadbtn {
+    float: left;
     width: 100px;
     height: 30px;
-    margin: 20 0 30 0;
+    margin-left: 10px;
     background: #707980;
     color: white;
     font-family: Helvetica, Arial, Sans-Serif;
     font-size: 15px;
 }
 
-.startbtn.on {
+.on {
+    float: left;
     width: 100px;
     height: 30px;
-    margin: 20 0 30 0;
+    margin-left: 10px;
     background: #294C7D;
     color: white;
     font-family: Helvetica, Arial, Sans-Serif;
     font-size: 15px;
+}
+
+.startbtn {
+    float: left;
+    width: 100px;
+    height: 30px;
+    margin-left: 10px;
+    background: #707980;
+    color: white;
+    font-family: Helvetica, Arial, Sans-Serif;
+    font-size: 15px;
+}
+
+#empty {
+    clear: both;
+    height: 10px;
 }
 
 canvas {

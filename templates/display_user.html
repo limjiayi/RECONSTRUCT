@@ -1,11 +1,15 @@
 {% extends 'base.html' %}
 {% block body %}
-    
+
     <h2>My point clouds</h2>
-    <div id='clouds'></div><br>
+    <div data-user-id='{{user_id}}' id='clouds'></div>
     {% for cloud in clouds %}
-        <div class='cloud'></div>
+        <div data-cloud-id='{{cloud.id}}' class='cloud'>
+            <br class='cloud-info'>Name: {{cloud.name}}
+            <br class='cloud-info'>Created on: {{cloud.created_on}}
+        </div>
     {% endfor %}
+    <br>
 
     <div>
         <h2>Upload photos</h2>
@@ -15,11 +19,10 @@
         </div>
         <br>
 
-        <h2 id='select'>Select photos</h2><br>
-        <button id='startbtn'>Start!</button>
+        <h2>Select photos</h2>
         <div id='preview'></div>
-        </div>
-        <br>
+    </div>
+    <br>
 
     {% if username %}
         <h2 class='visualize'>My point cloud</h2>
