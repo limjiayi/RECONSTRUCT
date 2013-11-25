@@ -2,33 +2,36 @@ a:hover { /* for links in navbar */
     color: #E3A71B;
 }
 
-.selected { /*  */
-    background-color: #C5D4D9;
-}
-
-.selected:hover { /*  */
-    background-color: #D0DCE0;
+.point_clouds {
+    margin-bottom: 15px;
 }
 
 .cloud {
     overflow: hidden;
+    padding: 10 10 10 10;
+}
+
+.cloud:hover {
+    background-color: #CED3D6;
 }
 
 .desc {
     clear: both;
-    padding-top: 10px;
+    padding-left: 3px;
     font-size: 15px;
 }
 
 .thumbnail { /* for thumbnails of photos used to reconstruct past point cloud */
     float: left;
-    width: 100px;
+    width: 150px;
+    margin-bottom: 5px;
     opacity: 0.5;
 }
 
-.thumbnail.on { /* for thumbnails of photos used to reconstruct past point clouds, when parent div has been clicked on */
+.thumbnail.hover { /* for thumbnails of photos used to reconstruct past point clouds, when parent div has been clicked on */
     float: left;
-    width: 100px;
+    width: 150px;
+    margin-bottom: 5px;
     opacity: 1;
 }
 
@@ -146,5 +149,5 @@ input { /* for input fields on register and login pages */
 }
 
 canvas { /* for ThreeJS viewer */
-    background-color: #292825;
+    background-color: #100E17;
 }

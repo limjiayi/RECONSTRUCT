@@ -110,6 +110,6 @@ function load_cloud(data) {
 	console.log('Loaded model');
 }
 
-function clear() {
+function clear_cloud() {
 	
 }

@@ -61,7 +61,6 @@ function handleFiles(files) {
 
 function startEnable() {
   $(document).on("click", ".startbtn", function() {
-        console.log('clicked start');
         var selectedPhotos = [];
         var photos = document.getElementsByClassName('checked');
         if (photos.length < 2) {
@@ -74,7 +73,6 @@ function startEnable() {
                 for (var i=0; i < photos.length; i++) {
                 selectedPhotos.push(photos[i].src);
                 }
-                console.log('# photos: ', photos.length);
                 sendFiles(selectedPhotos);
             }
         }
@@ -127,30 +125,24 @@ function uploadFiles(formData) {
     });
 }
 
-function chooseCloud() {
-    $('.cloud').bind('click', function() {
-        $(this).addClass('selected');
-        cloud_id = $(this).attr('data-cloud-id');
-
-        $.ajax( {
-            url: '/cloud/' + cloud_id,
-            type: 'GET',
-            async: true,
-            dataType: 'text',
-            success: function(data) {
-                if (data === null) {
-                    alert('Loading of point cloud failed.');
-                } else {
-                    load_cloud(data);
-                }
+function chooseCloud(cloud_id) {
+    $.ajax( {
+        url: '/cloud/' + cloud_id,
+        type: 'GET',
+        async: true,
+        dataType: 'text',
+        success: function(data) {
+            if (data === null) {
+                alert('Loading of point cloud failed.');
+            } else {
+                load_cloud(data);
             }
-        });
+        }
     });
 }
 
 function pastClouds() {
     $(document).ready(function() {
-        console.log('running pastClouds');
         var clouds_div = document.getElementById('clouds');
         if (clouds_div !== null) {
             user_id = $('#clouds').attr('data-user-id');
@@ -166,18 +158,35 @@ function pastClouds() {
                         console.log('Found past clouds.');
                         //display the previous point clouds
                         for (var key in data) {
-                            var $div = $('<div class="cloud" data-cloud-id="' + data[key][0]['cloud_id'] + '"><div class="desc">Name: ' + key + '</div></div>'); // name of cloud
+                            var $div = $('<div class="cloud" data-cloud-id="' + data[key][0]['cloud_id'] + '"><div class="desc">Name: ' + key + '<br>Created on: ' + data[key][0]['uploaded_on'].split(' ')[0] + '</div>'); // name of cloud
                             $('#clouds').append($div);
-                            $('.cloud').click( function() { // bind event listener
-                                var loadbtn = $('<button class="loadbtn on">Load</button>');
-                                $div.append($loadbtn);
-                                // chooseCloud();
-                            });
+
                             for (var i=0; i < data[key].length; i++) {
                                 var $photo = $('<img class="thumbnail" src="' + data[key][i]['path'] + '/' + data[key][i]['filename'] + '">');
                                 $div.append($photo);
                             }
                         }
+                        $('.cloud').mouseenter( function() { // bind event listener
+                            $(this).children('img').addClass('hover');
+                            var button = document.getElementsByClassName('loadbtn');
+                            if (button.length === 0) {
+                                $loadbtn = $('<button class="loadbtn">Load</button>');
+                                $(this).append($loadbtn);
+                                $loadbtn.toggleClass('on');
+                                $loadbtn.bind('click', function() {
+                                    var cloud_id = $(this).parent('.cloud').data('cloud-id');
+                                    console.log(cloud_id);
+                                    chooseCloud(cloud_id);
+                                });
+                            }
+                        });
+                        $('.cloud').mouseleave( function() {
+                            $(this).children('img').removeClass('hover');
+                            var button = document.getElementsByClassName('loadbtn');
+                            if (button.length > 0) {
+                                $('.loadbtn').remove();
+                            }
+                        });
                     }
                 }
             });

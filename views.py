@@ -96,8 +96,9 @@ def upload():
 @app.route('/cloud/<id>')
 def get_cloud(id):
     cloud_id = id
-    data = model_session.query(model.Cloud).filter_by(id=cloud_id).first().data
-    return data
+    path = model_session.query(model.Cloud).filter_by(id=cloud_id).first().path
+    points = str(reconstruct.extract_points(path + '/points.txt'))
+    return points
 
 @app.route('/past/<user_id>')
 def get_past_clouds(user_id):
@@ -105,7 +106,6 @@ def get_past_clouds(user_id):
         clouds = model_session.query(model.User).filter_by(id=user_id).first().clouds
         if clouds != "":
             clouds_d = dict( (cloud.name, [ photo.to_dict() for photo in cloud.photos ]) for cloud in clouds )
-            # clouds_d = {"clouds": [c.to_dict() for c in clouds]}
             print "clouds: ", clouds_d
             return jsonify(clouds_d)
     return None
