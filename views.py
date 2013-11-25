@@ -107,6 +107,19 @@ def get_past_clouds(user_id):
             return jsonify(clouds_d)
     return None
 
+@app.route('/past/<user_id>/<cloud_id>', methods=['POST'])
+def remove_cloud(cloud_id):
+    if user_id:
+        cloud = model_session.query('clouds').filter_by(cloud_id=cloud_id).one()
+        # best effort delete: try to delete a file if it exists, don't delete if lack permissions
+        try:
+            os.remove(cloud.path)
+        except OSError:
+            pass
+        for photo in cloud.photos:
+            model.delete_photo(photo.id)
+        model.delete_cloud(cloud_id)
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'GET':

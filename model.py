@@ -73,19 +73,11 @@ def delete_user(username):
     session.commit()
 
 def delete_cloud(cloud_id):
-    cloud = session.query('clouds').filter_by(cloud_id=cloud_id).one()
-    # best effort delete: try to delete a file if it exists, don't delete if lack permissions
-    try:
-        os.remove(cloud.path)
-    except OSError:
-        pass
-    for photo in cloud.photos:
-        delete_photo(photo.id)
-    cloud.delete(synchronize_session=False)
+    session.query('clouds').filter_by(cloud_id=cloud_id).one().delete(synchronize_session=False)
     session.commit()
 
 def delete_photo(photo_id):
-    session.query('photos').filter_by(photo_id=photo_d).one().delete(synchronize_session=False)
+    session.query('photos').filter_by(photo_id=photo_id).one().delete(synchronize_session=False)
     session.commit()
 
 
