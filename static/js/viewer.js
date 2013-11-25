@@ -65,7 +65,6 @@ function animate() {
 }
 
 function load_cloud(data) {
-	console.log('Loading cloud');
 	model = new THREE.Geometry();
 	model.dynamic = true;
 
@@ -107,9 +106,12 @@ function load_cloud(data) {
 	var material = new THREE.ParticleBasicMaterial({ size: particleSize, vertexColors: true });
 	particles = new THREE.ParticleSystem(model, material);
 	scene.add(particles);
-	console.log('Loaded model');
 }
 
-function clear_cloud() {
-	
+function clear_scene() {
+	console.log("clearing scene");
+	console.log(scene);
+	if (scene.__webglObjects.length > 0) {
+		scene.remove(particles);
+	}
 }

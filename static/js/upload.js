@@ -135,6 +135,7 @@ function chooseCloud(cloud_id) {
             if (data === null) {
                 alert('Loading of point cloud failed.');
             } else {
+                clear_scene();
                 load_cloud(data);
             }
         }
