@@ -1,14 +1,12 @@
-from flask import Flask, render_template, redirect, request, g, session, url_for, flash, jsonify
-from sqlalchemy import desc, update
+from flask import Flask, render_template, redirect, request, session, url_for, flash, jsonify
+from sqlalchemy import desc
 import os
 import config
-import forms
 import model
 from model import session as model_session
 import reconstruct
 import base64
 import re
-import json
 
 app = Flask(__name__)
 app.config.from_object(config)
@@ -71,9 +69,7 @@ def upload():
     path = 'static/uploads/%d/%s' % (user_id, cloud_id)
 
     images = sorted(path + '/' + img for img in os.listdir(path) if img.rpartition('.')[2].lower() in ('jpg', 'jpeg', 'png'))
-    print "images: ", images
     points_path = os.path.abspath(os.path.join(path, "points"))
-    print "pts path: ", points_path
     reconstruct.start(images, points_path)
     points = str(reconstruct.extract_points(points_path + ".txt"))
 
@@ -95,6 +91,7 @@ def upload():
 
 @app.route('/cloud/<id>')
 def get_cloud(id):
+    '''Gets the 3D points for a past point cloud.'''
     cloud_id = id
     path = model_session.query(model.Cloud).filter_by(id=cloud_id).first().path
     points = str(reconstruct.extract_points(path + '/points.txt'))
@@ -102,11 +99,11 @@ def get_cloud(id):
 
 @app.route('/past/<user_id>')
 def get_past_clouds(user_id):
+    '''Gets the name and photos used to reconstruct all of the user's past point clouds.'''
     if user_id:
         clouds = model_session.query(model.User).filter_by(id=user_id).first().clouds
         if clouds != "":
             clouds_d = dict( (cloud.name, [ photo.to_dict() for photo in cloud.photos ]) for cloud in clouds )
-            print "clouds: ", clouds_d
             return jsonify(clouds_d)
     return None
 
@@ -162,7 +159,6 @@ def logout():
 @app.route('/<username>')
 def display_user(username):
     username = session.get('username')
-    print username
     if username:
         try:
             user_id = model_session.query(model.User).filter_by(username=username).first().id

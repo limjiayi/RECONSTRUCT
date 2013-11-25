@@ -1,14 +1,9 @@
 {% extends 'base.html' %}
 {% block body %}
 
-    <h2>My point clouds</h2>
+    <h2 class='point_clouds'>My point clouds</h2>
     <div data-user-id='{{user_id}}' id='clouds'></div>
-    {% for cloud in clouds %}
-        <div data-cloud-id='{{cloud.id}}' class='cloud'>
-            <br class='cloud-info'>Name: {{cloud.name}}
-            <br class='cloud-info'>Created on: {{cloud.created_on}}
-        </div>
-    {% endfor %}
+
     <br>
 
     <div>

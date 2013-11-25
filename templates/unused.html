@@ -2,3 +2,10 @@
         <input type='file' name='photo' multiple>
         <button type='submit' id='upload'>Upload</button>
         <p>
+
+    {% for cloud in clouds %}
+        <div data-cloud-id='{{cloud.id}}' class='cloud'>
+            <br class='cloud-info'>Name: {{cloud.name}}
+            <br class='cloud-info'>Created on: {{cloud.created_on}}
+        </div>
+    {% endfor %}

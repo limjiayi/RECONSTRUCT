@@ -1,6 +1,7 @@
 import config
 import bcrypt
 from datetime import datetime
+import os
 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine, ForeignKey
@@ -67,16 +68,24 @@ class Photo(Base):
 
 ### End of class declarations ###
 
-def remove_user(username):
+def delete_user(username):
     session.query('users').filter_by(username=username).one().delete(synchronize_session=False)
     session.commit()
 
-def remove_cloud(cloud_id):
-    session.query('clouds').filter_by(filename=filename).one().delete(synchronize_session=False)
+def delete_cloud(cloud_id):
+    cloud = session.query('clouds').filter_by(cloud_id=cloud_id).one()
+    # best effort delete: try to delete a file if it exists, don't delete if lack permissions
+    try:
+        os.remove(cloud.path)
+    except OSError:
+        pass
+    for photo in cloud.photos:
+        delete_photo(photo.id)
+    cloud.delete(synchronize_session=False)
     session.commit()
 
-def remove_photo(filename):
-    session.query('photos').filter_by(filename=filename).one().delete(synchronize_session=False)
+def delete_photo(photo_id):
+    session.query('photos').filter_by(photo_id=photo_d).one().delete(synchronize_session=False)
     session.commit()
 
 

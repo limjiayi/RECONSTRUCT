@@ -2,20 +2,20 @@ a:hover { /* for links in navbar */
     color: #E3A71B;
 }
 
-.point_clouds {
+.point_clouds { /* for My point clouds heading */
     margin-bottom: 15px;
 }
 
-.cloud {
+.cloud { /* for past point cloud */
     overflow: hidden;
     padding: 10 10 10 10;
 }
 
-.cloud:hover {
+.cloud:hover { /* for past point cloud */
     background-color: #CED3D6;
 }
 
-.desc {
+.desc { /* for past cloud info */
     clear: both;
     padding-left: 3px;
     font-size: 15px;

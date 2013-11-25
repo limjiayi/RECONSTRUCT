@@ -79,12 +79,6 @@ function startEnable() {
    });
 }
 
-// function startDisable() {
-//     $('img').unbind('click');
-//     $('.startbtn').unbind('click');
-//     $('.startbtn').removeClass('on');
-// }
-
 function sendFiles(photos) {
     formData = new FormData();
     for (var i=0; i < photos.length; i++) {
@@ -118,7 +112,7 @@ function uploadFiles(formData) {
         processData: false,
         cache: false,
         data: formData,
-        success: function(data){
+        success: function(data) {
             console.log('Successfully uploaded files.');
             load_cloud(data);
         }
@@ -176,7 +170,6 @@ function pastClouds() {
                                 $loadbtn.toggleClass('on');
                                 $loadbtn.bind('click', function() {
                                     var cloud_id = $(this).parent('.cloud').data('cloud-id');
-                                    console.log(cloud_id);
                                     chooseCloud(cloud_id);
                                 });
                             }

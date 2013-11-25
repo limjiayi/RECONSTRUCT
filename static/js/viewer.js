@@ -46,11 +46,6 @@ function initScene() {
 	controls.noPan = false;
 	controls.staticMoving = true;
 	controls.dynamicDampingFactor = 0.3;
-
-	// SphereGeometry: radius, segmentsWidth, segmentsHeight
-	// sphere = new THREE.Mesh(new THREE.SphereGeometry(150,100,100), new THREE.MeshNormalMaterial());
-	// sphere.overdraw = true;
-	// scene.add(sphere);
 }
 
 // the loop

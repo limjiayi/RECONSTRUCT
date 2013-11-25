@@ -35,14 +35,15 @@ def save_points(images, pt_cloud, colours, filename=None, save_format='txt'):
                       'TYPE F F F F', 'COUNT 1 1 1 1', 'WIDTH %s' % pt_cloud.shape[0], 
                       'HEIGHT 1', 'VIEWPOINT = 0 0 0 1 0 0 0', 
                       'POINTS %s' % pt_cloud.shape[0], 'DATA ascii')
-        data = np.hstack((pt_cloud, colours))
 
-        f = open('%s.%s' % (filename, save_format), 'w')
-        for item in header:
-            f.write(item)
-        for pt in data:
-            f.write(pt)
-        f.close()
+        colours = np.array([ c[0]*256*256 + c[1]*256 + c[2] for c in colours ])
+        data = np.vstack((pt_cloud.T, colours)).T
+
+        with open('%s.%s' % (filename, save_format), 'w') as f:
+            for item in header:
+                f.write(item)
+            for pt in data:
+                f.write(pt)
     print "    Saved file as %s.%s" % (filename, save_format)
 
 def load_images(filename1, filename2):
@@ -72,6 +73,8 @@ def build_calibration_matrices(i, prev_sensor, filename1, filename2):
 
     metadata1 = GExiv2.Metadata(filename1)
     metadata2 = GExiv2.Metadata(filename2)
+    print metadata1['Exif.Image.Model']
+    print metadata2['Exif.Image.Model']
 
     if metadata1.get_supports_exif() and metadata2.get_supports_exif():
             sensor_1, sensor_2 = get_sensor_sizes(i, prev_sensor, metadata1, metadata2)
@@ -186,7 +189,7 @@ def find_projection_matrices(E, poses):
     # make sure E is rank 2
     U, S, V = np.linalg.svd(E)
     if np.linalg.det(np.dot(U, V)) < 0:
-            V = -V
+        V = -V
     E = np.dot(U, np.dot(np.diag([1,1,0]), V))
 
     # create matrices
@@ -413,7 +416,6 @@ def start(images, filename=None):
     save_format = 'txt'
 
     for i in range(len(images)-1):
-        print images[i]
         print "\n  Processing image %d and %d... " % (i+1, i+2)
 
         if i == 0:
@@ -423,39 +425,38 @@ def start(images, filename=None):
             colours = np.array(img_colours)
 
         elif i >= 1:
-            try:
-                prev_sensor, prev_kp, prev_des, prev_filter, poses, homog_3D, pts_3D, img_colours, pt_cloud_indexed = find_new_pts(i, prev_sensor, images[i], images[i+1], prev_kp, prev_des, prev_filter, poses, pt_cloud_indexed)
-                pt_cloud = np.vstack((pt_cloud, pts_3D))
-                colours = np.vstack((colours, img_colours))
-            except:
-                print "Error occurred in OpenCV."
-                break
+            # try:
+            prev_sensor, prev_kp, prev_des, prev_filter, poses, homog_3D, pts_3D, img_colours, pt_cloud_indexed = find_new_pts(i, prev_sensor, images[i], images[i+1], prev_kp, prev_des, prev_filter, poses, pt_cloud_indexed)
+            pt_cloud = np.vstack((pt_cloud, pts_3D))
+            colours = np.vstack((colours, img_colours))
+            # except:
+            #     print "Error occurred in OpenCV."
+            #     break
 
     # homog_pt_cloud = np.vstack((pt_cloud.T, np.ones(pt_cloud.shape[0])))
     # draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
     # draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
     # draw.draw_projected_points(homog_pt_cloud, P)
-
     save_points(images, pt_cloud, colours, filename)
     # display_vtk.vtk_show_points(pt_cloud, list(colours))
 
 def extract_points(filename):
-    return np.loadtxt(filename)
+    with open(filename, 'r') as f:
+        return f.read()
 
 def sort_images(directory):
     return sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'jpeg', 'png', 'pgm', 'ppm') ])
 
 def main():
-    load_filename = ''#points/ucd_building1_all.txt'
+    load_filename = 'points/statue.txt'
 
     if load_filename != '':
         load_points(load_filename)
     else:
-        directory = 'images/ucd_building4_all'
+        # directory = 'images/statue'
         # images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
-        images = sort_images(directory)
-        start(images)
-
+        # images = sort_images(directory)
+        start(images[:])
 
 if __name__ == "__main__":
     main()
