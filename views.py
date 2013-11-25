@@ -1,6 +1,6 @@
 from flask import Flask, render_template, redirect, request, session, url_for, flash, jsonify
 from sqlalchemy import desc
-import os
+import os, shutil
 import config
 import model
 from model import session as model_session
@@ -107,18 +107,14 @@ def get_past_clouds(user_id):
             return jsonify(clouds_d)
     return None
 
-@app.route('/past/<user_id>/<cloud_id>', methods=['POST'])
-def remove_cloud(cloud_id):
+@app.route('/remove/<user_id>/<cloud_id>', methods=['POST'])
+def remove_cloud(user_id, cloud_id):
     if user_id:
-        cloud = model_session.query('clouds').filter_by(cloud_id=cloud_id).one()
-        # best effort delete: try to delete a file if it exists, don't delete if lack permissions
-        try:
-            os.remove(cloud.path)
-        except OSError:
-            pass
-        for photo in cloud.photos:
-            model.delete_photo(photo.id)
-        model.delete_cloud(cloud_id)
+        cloud = model_session.query(model.Cloud).filter_by(id=cloud_id).first()
+        shutil.rmtree(cloud.path)
+        model.delete_photos(cloud_id=cloud_id)
+        model.delete_cloud(cloud_id=cloud_id)
+    return "Successfully deleted cloud."
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -126,7 +122,7 @@ def register():
         return render_template('register.html')
     else:
         username = request.form.get('username')
-        user = model.User.query.filter_by(username=username).first()
+        user = model_session.query(model.User).filter_by(username=username).first()
         if user != None:
             flash('This username is already taken.')
             return redirect(url_for('register'))

@@ -19,6 +19,7 @@ Base.query = session.query_property()
 
 class User(Base, UserMixin):
     __tablename__ = 'users'
+    __table_args__ = {'sqlite_autoincrement': True}
 
     id = Column(Integer, primary_key=True)
     username = Column(String(64), nullable=False)
@@ -43,6 +44,7 @@ class User(Base, UserMixin):
 
 class Cloud(Base):
     __tablename__ = 'clouds'
+    __table_args__ = {'sqlite_autoincrement': True}
 
     id = Column(Integer, primary_key=True)
     name = Column(String(64), nullable=True)
@@ -56,6 +58,7 @@ class Cloud(Base):
 
 class Photo(Base):
     __tablename__ = 'photos'
+    __table_args__ = {'sqlite_autoincrement': True}
 
     id = Column(Integer, primary_key=True)
     filename = Column(String(64), nullable=False)
@@ -69,15 +72,17 @@ class Photo(Base):
 ### End of class declarations ###
 
 def delete_user(username):
-    session.query('users').filter_by(username=username).one().delete(synchronize_session=False)
+    session.query(User).filter(User.username==username).delete()
     session.commit()
 
 def delete_cloud(cloud_id):
-    session.query('clouds').filter_by(cloud_id=cloud_id).one().delete(synchronize_session=False)
+    print cloud_id
+    session.query(Cloud).filter(Cloud.id==cloud_id).delete()
     session.commit()
+    print "deleted cloud"
 
-def delete_photo(photo_id):
-    session.query('photos').filter_by(photo_id=photo_id).one().delete(synchronize_session=False)
+def delete_photos(cloud_id):
+    session.query(Photo).filter(Photo.cloud_id==cloud_id).delete()
     session.commit()
 
 

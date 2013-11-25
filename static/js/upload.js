@@ -115,6 +115,8 @@ function uploadFiles(formData) {
         success: function(data) {
             console.log('Successfully uploaded files.');
             load_cloud(data);
+            alert('Point cloud loaded!');
+            pastClouds();
         }
     });
 }
@@ -147,12 +149,15 @@ function pastClouds() {
                 async: true,
                 dataType: 'json',
                 success: function(data) {
-                    if (data === null) {
-                        console.log('No previous point clouds found.');
-                    } else {
-                        console.log('Found past clouds.');
-                        //display the previous point clouds
-                        for (var key in data) {
+                    var clouds = document.getElementsByClassName('cloud');
+                    console.log(clouds);
+                    if (clouds.length > 0) {
+                        console.log('removing cloud');
+                        $('.cloud').remove();
+                    }
+                    //display the previous point clouds if there are any
+                    for (var key in data) {
+                        if (data[key][0] && data[key][0]['cloud_id']) {
                             var $div = $('<div class="cloud" data-cloud-id="' + data[key][0]['cloud_id'] + '"><div class="desc">Name: ' + key + '<br>Created on: ' + data[key][0]['uploaded_on'].split(' ')[0] + '</div>'); // name of cloud
                             $('#clouds').append($div);
 
@@ -161,27 +166,51 @@ function pastClouds() {
                                 $div.append($photo);
                             }
                         }
-                        $('.cloud').mouseenter( function() { // bind event listener
-                            $(this).children('img').addClass('hover');
-                            var button = document.getElementsByClassName('loadbtn');
-                            if (button.length === 0) {
-                                $loadbtn = $('<button class="loadbtn">Load</button>');
-                                $(this).append($loadbtn);
-                                $loadbtn.toggleClass('on');
-                                $loadbtn.bind('click', function() {
-                                    var cloud_id = $(this).parent('.cloud').data('cloud-id');
-                                    chooseCloud(cloud_id);
-                                });
-                            }
-                        });
-                        $('.cloud').mouseleave( function() {
-                            $(this).children('img').removeClass('hover');
-                            var button = document.getElementsByClassName('loadbtn');
-                            if (button.length > 0) {
-                                $('.loadbtn').remove();
-                            }
-                        });
                     }
+                    $('.cloud').mouseenter( function() { // bind event listener
+                        $(this).children('img').addClass('hover');
+                        // add load button
+                        var loadbuttons = document.getElementsByClassName('loadbtn');
+                        if (loadbuttons.length === 0) {
+                            $loadbtn = $('<button class="loadbtn">Load</button>');
+                            $(this).append($loadbtn);
+                            $loadbtn.toggleClass('on');
+                            $loadbtn.bind('click', function() {
+                                var cloud_id = $(this).parent('.cloud').data('cloud-id');
+                                chooseCloud(cloud_id);
+                            });
+                        } // add delete button
+                        var deletebuttons = document.getElementsByClassName('deletebtn');
+                        if (deletebuttons.length ===0) {
+                            $deletebtn = $('<button class="deletebtn">Delete</button>');
+                            $(this).append($deletebtn);
+                            $deletebtn.toggleClass('on');
+                            $deletebtn.bind('click', function() {
+                                var cloud_id = $(this).parent('.cloud').data('cloud-id');
+                                $.ajax( {
+                                    url: '/remove/' + user_id + '/' + cloud_id,
+                                    type: 'POST',
+                                    async: true,
+                                    dataType: 'text',
+                                    success: function(data) {
+                                        console.log('Successfully deleted cloud.');
+                                        pastClouds();
+                                    }
+                                });
+                            });
+                        }
+                    });
+                    $('.cloud').mouseleave( function() {
+                        $(this).children('img').removeClass('hover');
+                        var loadbuttons = document.getElementsByClassName('loadbtn');
+                        if (loadbuttons.length > 0) {
+                            $('.loadbtn').remove();
+                        }
+                        var deletebuttons = document.getElementsByClassName('deletebtn');
+                        if (deletebuttons.length > 0) {
+                            $('.deletebtn').remove();
+                        }
+                    });
                 }
             });
         }
