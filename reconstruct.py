@@ -30,11 +30,11 @@ def save_points(images, pt_cloud, colours, filename=None, save_format='txt'):
         np.savetxt('%s.%s' % (filename, save_format), data, delimiter=" ")
 
     elif save_format == 'pcd':
-        header = list('# .PCD v.7 - Point Cloud Data file format', 
+        header = ['# .PCD v.7 - Point Cloud Data file format', 
                       ' VERSION.7', 'FIELDS x y z rgb', 'SIZE 4 4 4 4', 
                       'TYPE F F F F', 'COUNT 1 1 1 1', 'WIDTH %s' % pt_cloud.shape[0], 
                       'HEIGHT 1', 'VIEWPOINT = 0 0 0 1 0 0 0', 
-                      'POINTS %s' % pt_cloud.shape[0], 'DATA ascii')
+                      'POINTS %s' % pt_cloud.shape[0], 'DATA ascii']
 
         colours = np.array([ c[0]*256*256 + c[1]*256 + c[2] for c in colours ])
         data = np.vstack((pt_cloud.T, colours)).T
@@ -150,7 +150,7 @@ def match_keypoints(kp1, des1, kp2, des2):
     else:
         print "Not enough matches were found - %d/%d" % (len(good_matches), MIN_MATCH_COUNT)
 
-    # src_pts and dst_pts are Nx1x2 arrays that contain the x and y coordinates
+    # src_pts and dst_pts are Nx1x2 arrays that contain the x and y pixel coordinates
     return src_pts, dst_pts, filtered_kp1, filtered_kp2
 
 def normalize_pts(K1, K2, src_pts, dst_pts):
@@ -174,6 +174,7 @@ def find_essential_matrix(K, norm_pts1, norm_pts2):
     # convert to Nx2 arrays for findFundamentalMat
     norm_pts1 = np.array([ pt[0] for pt in norm_pts1 ])
     norm_pts2 = np.array([ pt[0] for pt in norm_pts2 ])
+    # inliers (1 in mask) are features that satisfy the epipolar constraint
     F, mask = cv2.findFundamentalMat(norm_pts1, norm_pts2, cv2.RANSAC)
     E = np.dot(K.T, np.dot(F, K))
 
@@ -285,27 +286,34 @@ def attach_indices(i, pts_3D, filtered_kp1, filtered_kp2, pt_cloud_indexed=[]):
 
     def find_point(new_pt, pt_cloud_indexed):
         for old_pt in pt_cloud_indexed:
-            if new_pt[0] == old_pt.coords[0] and new_pt[1] == old_pt.coords[1] and new_pt[2] == old_pt.coords[2]:
-                return True, old_pt
+            try:
+                if new_pt.origin[i] == old_pt.origin[i]:
+                    return True, old_pt
+            except KeyError:
+                continue
         return False, None
 
-    if pt_cloud_indexed == []:
-        for num, pt in enumerate(pts_3D):
+
+    new_pts = []
+    for num, pt in enumerate(pts_3D):
             new_pt = Point3D(pt, {i: filtered_kp1[num], i+1: filtered_kp2[num]})
-            pt_cloud_indexed.append(new_pt)
+            new_pts.append(new_pt)
+
+
+    if pt_cloud_indexed == []:
+        pt_cloud_indexed = new_pts
     else:
-        for num, new_pt in enumerate(pts_3D):
+        for num, new_pt in enumerate(new_pts):
             found, old_pt = find_point(new_pt, pt_cloud_indexed)
             if found:
-                old_pt.origin[i] = filtered_kp2[num]
+                old_pt.origin[i+1] = filtered_kp2[num]
             else:
-                new_pt = Point3D(new_pt, {i: filtered_kp1[num], i+1: filtered_kp2[num]})
                 pt_cloud_indexed.append(new_pt)
 
     return pt_cloud_indexed
 
 def gen_pt_cloud(i, prev_sensor, image1, image2, poses):
-    '''Generates a point cloud for a pair of images. Generated point cloud is on the local coordinate system.'''
+    '''Generates a point cloud for a pair of images.'''
     print "    Loading images..."
     img1, img2 = load_images(image1, image2)
     img1_gray, img2_gray = gray_images(img1, img2)
@@ -409,8 +417,7 @@ def find_new_pts(i, prev_sensor, image1, image2, prev_kp, prev_des, prev_filter,
 
 def start(images, filename=None):
     '''Loop through each pair of images, find point correspondences and generate 3D point cloud.
-    Multiply each point cloud by the inverse of the camera matrices (camera poses) up to that point 
-    to get the 3D point (as seen by camera 1) and append this point cloud to the overall point cloud.'''
+    For each new frame, find additional points and add them to the overall point cloud.'''
     prev_sensor = 0
     poses = [np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]], dtype=float)]
     save_format = 'txt'
@@ -433,12 +440,18 @@ def start(images, filename=None):
             #     print "Error occurred in OpenCV."
             #     break
 
+    max_track = 0
+    for pt in pt_cloud_indexed:
+        if len(pt.origin) > max_track:
+            max_track = len(pt.origin)
+    print max_track
+
     # homog_pt_cloud = np.vstack((pt_cloud.T, np.ones(pt_cloud.shape[0])))
     # draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
     # draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
     # draw.draw_projected_points(homog_pt_cloud, P)
-    save_points(images, pt_cloud, colours, filename)
-    # display_vtk.vtk_show_points(pt_cloud, list(colours))
+    # save_points(images, pt_cloud, colours, filename, save_format='txt')
+    display_vtk.vtk_show_points(pt_cloud, list(colours))
 
 def extract_points(filename):
     with open(filename, 'r') as f:
@@ -447,16 +460,18 @@ def extract_points(filename):
 def sort_images(directory):
     return sorted([ str(directory + "/" + img) for img in os.listdir(directory) if img.rpartition('.')[2].lower() in ('jpg', 'jpeg', 'png', 'pgm', 'ppm') ])
 
+
 def main():
-    load_filename = 'points/statue.txt'
+    load_filename = ''#points/statue.txt'
 
     if load_filename != '':
         load_points(load_filename)
     else:
-        # directory = 'images/statue'
+        directory = 'images/ucd_building4_all'
         # images = ['images/data/alcatraz1.jpg', 'images/data/alcatraz2.jpg']
-        # images = sort_images(directory)
-        start(images[:])
+        images = sort_images(directory)
+        start(images[:4])
+
 
 if __name__ == "__main__":
     main()
