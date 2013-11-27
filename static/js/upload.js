@@ -25,15 +25,20 @@ function drop(e) {
 }
 
 function handleFiles(files) {
-    button = document.getElementsByClassName('startbtn');
+    startButton = document.getElementsByClassName('startbtn');
+    clearButton = document.getElementsByClassName('clearbtn');
     field = document.getElementsByTagName('input');
     if (field.length === 0) {
         $field = $('<form><input id="field" type="text" name="cloud_name" placeholder="Type a name for your point cloud."></form>');
         $('#preview').append($field);
     }
-    if (button.length === 0) {
-        $button = $('<button class="startbtn on">Start!</button><div id="empty"></div>');
-        $('#preview').append($button);
+    if (startButton.length === 0) {
+        $startButton = $('<button class="startbtn on">Start!</button>');
+        $('#preview').append($startButton);
+    }
+    if (clearButton.length === 0) {
+        $clearButton = $('<button class="clearbtn on">Clear</button><div id="empty"></div>');
+        $('#preview').append($clearButton);
     }
     for (var i = 0; i < files.length; i++) {
         var file = files[i];
@@ -45,10 +50,10 @@ function handleFiles(files) {
             $(this).toggleClass('checked');
         });
         if (!file.type.match(imageType)) {
-            console.log("File is not an image!", imageType);
+            alert("File is not an image!", imageType);
         }
         // create thumbnails of the selected photos
-        // photos are stored on disk
+        // photos are stored in memory?
         var reader = new FileReader();
         reader.onload = (function(img) {
             return function(e) {
@@ -60,7 +65,7 @@ function handleFiles(files) {
 }
 
 function startEnable() {
-  $(document).on("click", ".startbtn", function() {
+    $(document).on("click", ".startbtn", function() {
         var selectedPhotos = [];
         var photos = document.getElementsByClassName('checked');
         if (photos.length < 2) {
@@ -77,6 +82,15 @@ function startEnable() {
             }
         }
    });
+}
+
+function clearPreview() {
+    $(document).on("click", ".clearbtn", function() {
+        previews = document.getElementsByClassName('preview');
+        if (previews.length > 0) {
+            $('.preview').remove();
+        }
+    });
 }
 
 function sendFiles(photos) {
@@ -114,6 +128,7 @@ function uploadFiles(formData) {
         data: formData,
         success: function(data) {
             console.log('Successfully uploaded files.');
+            clear_scene();
             load_cloud(data);
             alert('Point cloud loaded!');
             pastClouds();
@@ -150,9 +165,7 @@ function pastClouds() {
                 dataType: 'json',
                 success: function(data) {
                     var clouds = document.getElementsByClassName('cloud');
-                    console.log(clouds);
                     if (clouds.length > 0) {
-                        console.log('removing cloud');
                         $('.cloud').remove();
                     }
                     //display the previous point clouds if there are any
@@ -170,8 +183,8 @@ function pastClouds() {
                     $('.cloud').mouseenter( function() { // bind event listener
                         $(this).children('img').addClass('hover');
                         // add load button
-                        var loadbuttons = document.getElementsByClassName('loadbtn');
-                        if (loadbuttons.length === 0) {
+                        var loadButtons = document.getElementsByClassName('loadbtn');
+                        if (loadButtons.length === 0) {
                             $loadbtn = $('<button class="loadbtn">Load</button>');
                             $(this).append($loadbtn);
                             $loadbtn.toggleClass('on');
@@ -180,8 +193,8 @@ function pastClouds() {
                                 chooseCloud(cloud_id);
                             });
                         } // add delete button
-                        var deletebuttons = document.getElementsByClassName('deletebtn');
-                        if (deletebuttons.length ===0) {
+                        var deleteButtons = document.getElementsByClassName('deletebtn');
+                        if (deleteButtons.length ===0) {
                             $deletebtn = $('<button class="deletebtn">Delete</button>');
                             $(this).append($deletebtn);
                             $deletebtn.toggleClass('on');
@@ -220,5 +233,6 @@ function pastClouds() {
 
 jQuery(function() {
   startEnable();
+  clearPreview();
   pastClouds();
 });
