@@ -27,6 +27,7 @@ function drop(e) {
 function handleFiles(files) {
     startButton = document.getElementsByClassName('startbtn');
     clearButton = document.getElementsByClassName('clearbtn');
+    choiceButton = document.getElementsByClassName('choicebtn');
     field = document.getElementsByTagName('input');
     if (field.length === 0) {
         $field = $('<form><input id="field" type="text" name="cloud_name" placeholder="Type a name for your point cloud."></form>');
@@ -37,9 +38,16 @@ function handleFiles(files) {
         $('#preview').append($startButton);
     }
     if (clearButton.length === 0) {
-        $clearButton = $('<button class="clearbtn on">Clear</button><div id="empty"></div>');
+        $clearButton = $('<button class="clearbtn on">Clear</button><div class="empty"></div>');
         $('#preview').append($clearButton);
     }
+    if (choiceButton.length === 0) {
+        /*jshint multistr: true */
+        $choiceButton = $('<div id="choose">Choose the feature matching algorithm: <input type="radio" class="choicebtn" name="choice" value="features" checked><label for="choice1">SURF</label> \
+                           <input type="radio" class="choicebtn" name="choice" value="flow"><label for="choice2">Optical flow</label></div><br>');
+        $('#preview').append($choiceButton);
+    }
+
     for (var i = 0; i < files.length; i++) {
         var file = files[i];
         var imageType = /image.*/;
@@ -65,7 +73,7 @@ function handleFiles(files) {
 }
 
 function startEnable() {
-    $(document).on("click", ".startbtn", function() {
+    $(document).on('click', '.startbtn', function() {
         var selectedPhotos = [];
         var photos = document.getElementsByClassName('checked');
         if (photos.length < 2) {
@@ -98,8 +106,10 @@ function sendFiles(photos) {
     for (var i=0; i < photos.length; i++) {
         formData.append('photo['+i+']', photos[i]);
     }
-    var input = document.getElementById('field').value;
-    formData.append('cloud_name', input);
+    var cloudName = document.getElementById('field').value;
+    var choice = $('input:radio[name=choice]:checked').val();
+    formData.append('cloud_name', cloudName);
+    formData.append('choice', choice);
     uploadFiles(formData);
 }
 
@@ -194,7 +204,7 @@ function pastClouds() {
                             });
                         } // add delete button
                         var deleteButtons = document.getElementsByClassName('deletebtn');
-                        if (deleteButtons.length ===0) {
+                        if (deleteButtons.length === 0) {
                             $deletebtn = $('<button class="deletebtn">Delete</button>');
                             $(this).append($deletebtn);
                             $deletebtn.toggleClass('on');
@@ -215,12 +225,12 @@ function pastClouds() {
                     });
                     $('.cloud').mouseleave( function() {
                         $(this).children('img').removeClass('hover');
-                        var loadbuttons = document.getElementsByClassName('loadbtn');
-                        if (loadbuttons.length > 0) {
+                        var loadbutton = document.getElementsByClassName('loadbtn');
+                        if (loadbutton.length === 1) {
                             $('.loadbtn').remove();
                         }
-                        var deletebuttons = document.getElementsByClassName('deletebtn');
-                        if (deletebuttons.length > 0) {
+                        var deletebutton = document.getElementsByClassName('deletebtn');
+                        if (deletebutton.length === 1) {
                             $('.deletebtn').remove();
                         }
                     });

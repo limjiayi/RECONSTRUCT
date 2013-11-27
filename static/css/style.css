@@ -17,8 +17,8 @@ a:hover { /* for links in navbar */
 
 .desc { /* for past cloud info */
     clear: both;
-    padding-left: 3px;
-    font-size: 15px;
+    padding: 0 0 5 3;
+    font-size: 14px;
 }
 
 .thumbnail { /* for thumbnails of photos used to reconstruct past point cloud */
@@ -88,6 +88,22 @@ a:hover { /* for links in navbar */
     opacity: 1;
 }
 
+#choose {
+    font-size: 15px;
+}
+
+input[type=radio] {
+/*    display: none;
+*/    margin: 10px;
+}
+
+input[type=radio] + label {
+    display: inline-block;
+    padding: 5px 5px;
+    background-color: #E7E7E7;
+    font-size: 15px;
+}
+
 .visualize { /*  */
     clear: both;
     margin-bottom: 30px;
@@ -121,7 +137,7 @@ input { /* for input fields on register and login pages */
     font-size: 15px;
 }
 
-.on { /* for start and load buttons when clickable */
+.on { /* for start, load and delete buttons when clickable */
     float: left;
     width: 100px;
     height: 30px;
@@ -143,7 +159,7 @@ input { /* for input fields on register and login pages */
     font-size: 15px;
 }
 
-#empty { /*  */
+.empty { /*  */
     clear: both;
     height: 10px;
 }

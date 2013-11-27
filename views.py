@@ -32,7 +32,7 @@ def upload():
     pattern = re.compile(r'^data:image/(png|jpeg|jpg);base64,(.*)$')
     raw_data = []
     for key in f_keys:
-        if key != 'cloud_name':
+        if key != 'cloud_name' and key != 'choice':
             match = pattern.match(request.form[key])
             if match is None:
                 raise ValueError('Invalid image data.')
@@ -47,6 +47,7 @@ def upload():
         os.mkdir(user_path)
 
     cloud_name = request.form['cloud_name']
+    algorithm = request.form['choice']
 
     # save cloud to database
     new_cloud = model.Cloud(user_id=user_id, name=cloud_name)
@@ -63,14 +64,14 @@ def upload():
 
     for idx, d in enumerate(raw_data):
         filename = '{}.{}'.format(len(raw_data)-idx, match.group(1))
-        with open(path + '/' + filename, 'wb') as f:
+        with open(path + '/' + filename, 'w') as f:
             f.write(d)
 
     path = 'static/uploads/%d/%s' % (user_id, cloud_id)
 
     images = sorted(path + '/' + img for img in os.listdir(path) if img.rpartition('.')[2].lower() in ('jpg', 'jpeg', 'png'))
     points_path = os.path.abspath(os.path.join(path, "points"))
-    reconstruct.start(images, points_path)
+    reconstruct.start(images, filename=points_path, choice=algorithm)
     points = str(reconstruct.extract_points(points_path + ".txt"))
 
     # set the path to the text file storing the 3D points of the cloud

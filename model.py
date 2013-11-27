@@ -76,10 +76,8 @@ def delete_user(username):
     session.commit()
 
 def delete_cloud(cloud_id):
-    print cloud_id
     session.query(Cloud).filter(Cloud.id==cloud_id).delete()
     session.commit()
-    print "deleted cloud"
 
 def delete_photos(cloud_id):
     session.query(Photo).filter(Photo.cloud_id==cloud_id).delete()

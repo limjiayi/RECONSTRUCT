@@ -30,7 +30,7 @@ def save_points(choice, images, pt_cloud, colours, filename=None, save_format='t
 
     elif save_format == 'pcd':
         header = ['# .PCD v.7 - Point Cloud Data file format', 
-                      ' VERSION.7', 'FIELDS x y z rgb', 'SIZE 4 4 4 4', 
+                      'VERSION.7', 'FIELDS x y z rgb', 'SIZE 4 4 4 4', 
                       'TYPE F F F F', 'COUNT 1 1 1 1', 'WIDTH %s' % pt_cloud.shape[0], 
                       'HEIGHT 1', 'VIEWPOINT = 0 0 0 1 0 0 0', 
                       'POINTS %s' % pt_cloud.shape[0], 'DATA ascii']
@@ -40,9 +40,9 @@ def save_points(choice, images, pt_cloud, colours, filename=None, save_format='t
 
         with open('%s.%s' % (filename, save_format), 'w') as f:
             for item in header:
-                f.write(item)
+                f.write(item + '\n')
             for pt in data:
-                f.write(pt)
+                f.write(np.array_str(pt).strip('[]') + '\n')
     print "    Saved file as %s.%s" % (filename, save_format)
 
 
@@ -88,7 +88,7 @@ def gen_pt_cloud(i, prev_sensor, image1, image2, poses, choice):
 
     # use Farneback's dense optical flow tracking to compute point correspondences
     elif choice == 'flow':
-        while img1.shape[0] > 800 or img1.shape[1] > 800:
+        while img1.shape[0] > 700 or img1.shape[1] > 700:
             img1, img2 = downsample_images(img1, img2)
             img1_gray, img2_gray = gray_downsampled(img1, img2)
         print "    Calculating optical flow..."
@@ -154,7 +154,7 @@ def find_new_pts_feat(i, prev_sensor, image1, image2, prev_kp, prev_des, prev_fi
 def find_new_pts_flow(i, prev_sensor, image1, image2, poses, pt_cloud_indexed):
     print "    Loading images..."
     img1, img2 = load_images(image1, image2)
-    while img1.shape[0] > 800 or img1.shape[1] > 800:
+    while img1.shape[0] > 700 or img1.shape[1] > 700:
         img1, img2 = downsample_images(img1, img2)
         img1_gray, img2_gray = gray_downsampled(img1, img2)
     # img1_gray, img2_gray = gray_images(img1, img2)
@@ -190,7 +190,7 @@ def find_new_pts_flow(i, prev_sensor, image1, image2, poses, pt_cloud_indexed):
     return sensor_i, poses, homog_3D, pts_3D, img_colours, pt_cloud_indexed
 
 
-def start(images, filename=None, choice=None):
+def start(images, filename=None, choice='features'):
     '''Loop through each pair of images, find point correspondences and generate 3D point cloud.
     For each new frame, find additional points and add them to the overall point cloud.'''
     prev_sensor = 0
@@ -238,7 +238,7 @@ def start(images, filename=None, choice=None):
     # draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
     # draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
     # draw.draw_projected_points(homog_pt_cloud, P)
-    save_points(choice, images, pt_cloud, colours, filename, save_format)
+    save_points(choice, images, pt_cloud, colours, filename, save_format='txt')
     display_vtk.vtk_show_points(pt_cloud, list(colours))
 
 
@@ -248,12 +248,12 @@ def main():
     if load_filename != '':
         load_points(load_filename)
     else:
-        directory = 'images/ucd_coffeeshack_all'
-        # images = ['images/statue/P1000965.JPG', 'images/statue/P1000969.JPG']
+        directory = 'images/statue'
+        # images = ['images/statue/P1000965.JPG', 'images/statue/P1000966.JPG']
         # images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000003.jpg']
         # images = ['images/ucd_coffeeshack_all/00000000.JPG', 'images/ucd_coffeeshack_all/00000003.JPG']
         images = sort_images(directory)
-        start(images[:5], choice='flow')
+        start(images[:], choice='flow')
 
 
 if __name__ == "__main__":
