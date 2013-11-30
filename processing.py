@@ -2,6 +2,8 @@ import os, sys
 import cv2
 import numpy as np
 from gi.repository import GExiv2
+import pcl
+import display_vtk
 import cam_db
 
 def sort_images(directory):
@@ -24,8 +26,8 @@ def build_calibration_matrices(i, prev_sensor, filename1, filename2):
         '''Looks up sensor width from the database based on the camera model.'''
         # focal length in pixels = (image width in pixels) * (focal length in mm) / (CCD width in mm)
         if i == 0:
-            sensor_1 = cam_db.get_sensor_size(metadata1['Exif.Image.Model'].upper())
-            sensor_2 = cam_db.get_sensor_size(metadata2['Exif.Image.Model'].upper())
+            sensor_1 = cam_db.get_sensor_size(metadata1['Exif.Image.Model'].strip().upper())
+            sensor_2 = cam_db.get_sensor_size(metadata2['Exif.Image.Model'].strip().upper())
         elif i >= 1:
             sensor_1 = prev_sensor
             sensor_2 = cam_db.get_sensor_size(metadata2['Exif.Image.Model'])
@@ -78,7 +80,6 @@ def normalize_points(K1, K2, src_pts, dst_pts):
     # convert to 3xN arrays by making the points homogeneous
     src_pts = np.vstack((np.array([ pt[0] for pt in src_pts ]).T, np.ones(src_pts.shape[0])))
     dst_pts = np.vstack((np.array([ pt[0] for pt in dst_pts ]).T, np.ones(dst_pts.shape[0])))
-    print src_pts.shape, dst_pts.shape
 
     # normalize with the calibration matrices
     # norm_pts1 and norm_pts2 are 3xN arrays
@@ -165,8 +166,7 @@ def triangulate_points(P1, P2, refined_pts1, refined_pts2):
             infront = (d1 > 0) & (d2 < 0)
 
     # triangulate inliers and keep only points that are in front of both cameras
-    # homog_3D is a 4xN array of reconstructed points in homogeneous coordinates
-    # pts_3D is a Nx3 array
+    # homog_3D is a 4xN array of reconstructed points in homogeneous coordinates, pts_3D is a Nx3 array
     homog_3D = cv2.triangulatePoints(P1, P2[ind], refined_pts1, refined_pts2)
     homog_3D = homog_3D[:, infront]
     homog_3D = homog_3D / homog_3D[3]
@@ -196,8 +196,93 @@ def get_colours(img1, K1, K2, norm_pts1, norm_pts2, homog_3D):
     return img1_pts, img2_pts, img_colours
 
 def compute_cam_pose(K1, matched_pts_2D, matched_pts_3D, poses):
+    '''Compute the camera pose from a set of 3D and 2D correspondences.'''
     rvec, tvec = cv2.solvePnPRansac(matched_pts_3D, matched_pts_2D, K1, None)[0:2]
     rmat = cv2.Rodrigues(rvec)[0]
     pose = np.hstack((rmat, tvec))
     poses.append(pose)
     return poses
+
+def load_points(filename):
+    '''Loads .txt and .pcd files.'''
+    format = filename.rpartition('.')[2]
+    if format == 'txt':
+        data = np.loadtxt(filename)
+        pt_cloud = data[:,:3]
+        colours = data[:,3:]
+
+    elif format == 'pcd':
+        data = np.loadtxt(filename)[11:]
+        pt_cloud = data[:,:3]
+        colours = data[:,3:]
+
+    display_vtk.vtk_show_points(pt_cloud, list(colours))
+
+def rgb_to_int(colours):
+    return np.array([ c[0]*256*256 + c[1]*256 + c[2] for c in colours ])
+
+def save_points(choice, images, pt_cloud, colours, file_path=None, save_format='txt'):
+    '''Saves point cloud data in .txt or .pcd formats.'''
+    print choice, file_path, save_format
+    print len(pt_cloud), len(colours)
+    if file_path is None:
+        file_path = 'points/' + images[0].split('/')[1].lower() + '_' + choice
+
+    if save_format == 'txt':
+        data = np.hstack((pt_cloud, colours))
+        np.savetxt('%s.%s' % (file_path, save_format), data, delimiter=" ")
+
+    elif save_format == 'pcd':
+        header = ['# .PCD v.7 - Point Cloud Data file format', 
+                      'VERSION.7', 'FIELDS x y z rgb', 'SIZE 4 4 4 4', 
+                      'TYPE F F F F', 'COUNT 1 1 1 1', 'WIDTH %s' % pt_cloud.shape[0], 
+                      'HEIGHT 1', 'VIEWPOINT = 0 0 0 1 0 0 0', 
+                      'POINTS %s' % pt_cloud.shape[0], 'DATA ascii']
+
+        colours = rgb_to_int(colours)
+        data = np.vstack((pt_cloud.T, colours)).T
+
+        with open('%s.%s' % (file_path, save_format), 'w') as f:
+            for item in header:
+                f.write(item + '\n')
+            for pt in data:
+                f.write(np.array_str(pt).strip('[]') + '\n')
+    print "    Saved file as %s.%s" % (file_path.rpartition('/')[2], save_format)
+
+def remove_outliers(file_path):
+    points = pcl.PointCloud()
+    points.from_file(file_path)
+
+    fil = points.make_statistical_outlier_filter()
+    fil.set_mean_k(50)
+    fil.set_std_dev_mul_thresh(1.0)
+    fil.filter().to_file(file_path.rpartition('.')[0] + '_inliers' + '.pcd')
+
+def check_line(orig_file, line):
+    line = [ round(float(i), 5) for i in line.split() ]
+
+    with open(orig_file, 'r') as file_o:
+        for j, line_o in enumerate(file_o):
+            line_o = [ round(float(k), 5) for k in line_o.split() ]
+
+            if line == line_o[:3]:
+                return True, " ".join( [ str(val) for val in line_o ] )
+    return False, None
+
+def pcd_to_txt(orig_file, file_read):
+    file_write = file_read.rpartition('.')[0] + '.txt'
+
+    try:
+        with open(file_read, 'r') as file_r:
+            with open(file_write, 'w') as file_w:
+                for i, line in enumerate(file_r):
+                    if i > 10:
+                        found, line_o = check_line(orig_file, line)
+                        if found:
+                            file_w.write(line_o + '\n')
+    except IOError as e:
+        print 'Operation failed: %s' % e.strerror
+
+def extract_points(file_path):
+    with open(file_path, 'r') as f:
+        return f.read()

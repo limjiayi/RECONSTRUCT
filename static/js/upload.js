@@ -134,7 +134,6 @@ function uploadFiles(formData) {
         data: formData,
         success: function(data) {
             console.log('Successfully uploaded files.');
-            console.log(data);
             var cloud_id = data['cloud_id'];
             var viewer = document.getElementById('viewer');
             viewer.setAttribute('data-cloud-id', cloud_id);

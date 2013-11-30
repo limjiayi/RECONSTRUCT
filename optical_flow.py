@@ -24,7 +24,8 @@ def gray_downsampled(img1, img2):
 
     return img1_gray, img2_gray
 
-def get_flow(img1_gray, img2_gray):
+def calc_flow(img1_gray, img2_gray):
+    '''The flow is a HxWx2 array of motion flow vectors.'''
     PYR_SCALE, LEVELS = 0.5, 3
     WINSIZE, ITERATIONS = 15, 3
     POLY_N, POLY_SIGMA = 5, 1.2
@@ -33,12 +34,8 @@ def get_flow(img1_gray, img2_gray):
     flow = cv2.calcOpticalFlowFarneback(img1_gray, img2_gray, PYR_SCALE, LEVELS, WINSIZE, ITERATIONS, POLY_N, POLY_SIGMA, FLAGS)
     return flow
 
-def calc_flow(prev_gray, gray):
-    # the flow is a HxWx2 array of motion flow vectors
-    flow = get_flow(prev_gray, gray)
-    return flow
-
 def match_points(img2, flow):
+    '''Finds points in the second image that matches the first, based on the motion flow vectors.'''
     # create an empty HxW array to store the dst points
     h, w = img2.shape[0], img2.shape[1]
     src_pts = [ [[col, row]] for row in xrange(h) for col in xrange(w) if (0 < int(row + flow[row, col][0]) < h) and (0 < int(col + flow[row, col][1]) < w) ]
@@ -62,10 +59,7 @@ def attach_tracks(i, pts_3D, norm_pts1, norm_pts2, pt_cloud_indexed=[]):
                 continue
         return False, None
 
-    new_pts = []
-    for num, pt in enumerate(pts_3D):
-        new_pt = Point3D(pt, {i: norm_pts1[num], i+1: norm_pts2[num]})
-        new_pts.append(new_pt)
+    new_pts = [ Point3D(pt, {i: norm_pts1[num], i+1: norm_pts2[num]}) for num, pt in enumerate(pts_3D) ]
 
     if pt_cloud_indexed == []:
         pt_cloud_indexed = new_pts
@@ -80,14 +74,8 @@ def attach_tracks(i, pts_3D, norm_pts1, norm_pts2, pt_cloud_indexed=[]):
     return pt_cloud_indexed
 
 def scan_tracks(i, norm_pts1, norm_pts2, pt_cloud_indexed):
-    matched_pts_2D = []
-    matched_pts_3D = []
-
-    for num, pt_2D in enumerate(norm_pts1):
-        for pt_3D in pt_cloud_indexed:
-            if pt_3D.origin[i][0] == pt_2D[0][0] and pt_3D.origin[i][1] == pt_2D[0][1]:
-                matched_pts_2D.append(norm_pts2[num])
-                matched_pts_3D.append(pt_3D.coords)
+    matched_pts_2D = [ norm_pts2[num] for (num, pt_2D) in enumerate(norm_pts1) for pt_3D in pt_cloud_indexed if pt_3D.origin[i][0] == pt_2D[0][0] and pt_3D.origin[i][1] == pt_2D[0][1] ]
+    matched_pts_3D = [ pt_3D.coords for (num, pt_2D) in enumerate(norm_pts1) for pt_3D in pt_cloud_indexed if pt_3D.origin[i][0] == pt_2D[0][0] and pt_3D.origin[i][1] == pt_2D[0][1] ]
 
     matched_pts_2D = np.array(matched_pts_2D, dtype='float32')
     matched_pts_3D = np.array(matched_pts_3D, dtype='float32')
