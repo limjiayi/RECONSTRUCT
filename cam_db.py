@@ -25,16 +25,16 @@ class Camera(Base):
   sensor_width = Column(Float, nullable=False)
 
 def add_camera(model, sensor_width):
-  new_camera = Camera(model=model.upper(), sensor_width=sensor_width)
+  new_camera = Camera(model=model.strip().upper(), sensor_width=sensor_width)
   session.add(new_camera)
   session.commit()
   session.refresh(new_camera)
 
 def remove_camera(model):
-  camera = session.query(Camera).filter_by(model=model.upper()).one()
+  camera = session.query(Camera).filter_by(model=model.strip().upper()).first()
   session.delete(camera)
   session.commit()
 
 def get_sensor_size(model):
-  rows = session.query(Camera).filter_by(model=model.upper()).one()
+  rows = session.query(Camera).filter_by(model=model.strip().upper()).first()
   return rows.sensor_width

@@ -1,3 +1,13 @@
+$(document).ready(function() {
+    $('#preloader').bind('ajaxSend', function() {
+        $(this).show();
+    }).bind('ajaxStop', function() {
+        $(this).hide();
+    }).bind('ajaxError', function() {
+        $(this).hide();
+    });
+});
+
 var dropbox = document.getElementsByClassName('dropbox')[0];
 if (dropbox !== undefined) {
     dropbox.addEventListener('dragenter', dragenter, false);
@@ -116,20 +126,6 @@ function sendFiles(photos) {
 function uploadFiles(formData) {
     var uploadURL ="/upload";
     var jqXHR=$.ajax( {
-        xhr: function() {
-            var xhrobj = $.ajaxSettings.xhr();
-            if (xhrobj.upload) {
-                xhrobj.upload.addEventListener('progress', function(event) {
-                    var percent = 0;
-                    var position = event.loaded || event.position;
-                    var total = event.total;
-                    if (event.lengthComputable) {
-                        percent = Math.ceil(position / total * 100);
-                    }
-                }, false);
-            }
-            return xhrobj;
-        },
         url: uploadURL,
         type: "POST",
         contentType:false,
@@ -138,10 +134,15 @@ function uploadFiles(formData) {
         data: formData,
         success: function(data) {
             console.log('Successfully uploaded files.');
-            clear_scene();
-            load_cloud(data);
-            alert('Point cloud loaded!');
+            console.log(data);
+            var cloud_id = data['cloud_id'];
+            var viewer = document.getElementById('viewer');
+            viewer.setAttribute('data-cloud-id', cloud_id);
+            var points = data['points'];
+            clearScene();
+            loadCloud(points);
             pastClouds();
+            showDownloads();
         }
     });
 }
@@ -156,8 +157,11 @@ function chooseCloud(cloud_id) {
             if (data === null) {
                 alert('Loading of point cloud failed.');
             } else {
-                clear_scene();
-                load_cloud(data);
+                var viewer = document.getElementById('viewer');
+                viewer.setAttribute('data-cloud-id', cloud_id);
+                clearScene();
+                loadCloud(data);
+                showDownloads();
             }
         }
     });
@@ -236,6 +240,40 @@ function pastClouds() {
                     });
                 }
             });
+        }
+    });
+}
+
+function showDownloads() {
+    var cloud_id = document.getElementById('viewer').getAttribute('data-cloud-id');
+    $.ajax( {
+        url: '/download/' + cloud_id,
+        type: 'GET',
+        async: true,
+        dataType: 'json',
+        success: function(data) {
+            if (data === null) {
+                alert('Failed to get download path.');
+            } else {
+                var txtPath = data['txt'];
+                var pcdPath = data['pcd'];
+                var downloadButtons = document.getElementsByClassName('downloadbtn');
+                if (downloadButtons.length === 0) {
+                    $dlHeader = $('<h2 class="download">Download point cloud</h2>');
+                    $('#download').append($dlHeader);
+                    $downloadbtn1 = $('<a href="' + txtPath + '" download="points.txt"><button class="downloadbtn" id="txt">Download txt</button></a>');
+                    $downloadbtn2 = $('<a href="' + pcdPath + '" downloads="points.pcd"><button class="downloadbtn" id="pcd">Download PCD</button></a>');
+                    $('#download').append($downloadbtn1);
+                    $('#download').append($downloadbtn2);
+                    $('.downloadbtn').toggleClass('on');
+                }
+                else {
+                    txtButton = document.getElementById('txt');
+                    pcdButton = document.getElementById('pcd');
+                    txtButton.href = txtPath;
+                    pcdButton.href = pcdPath;
+                }
+            }
         }
     });
 }

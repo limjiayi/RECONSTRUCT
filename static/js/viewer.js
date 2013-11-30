@@ -2,17 +2,14 @@
 var WIDTH = 940, HEIGHT = 500;
 
 // global variables
-var viewer, camera, scene, renderer, ambient, sphere, controls;
+var viewer, camera, scene, renderer, ambient, controls;
 
 // set some camera attributes
 var VIEW_ANGLE = 70, ASPECT = WIDTH / HEIGHT,
-	NEAR = 0.001, FAR = 10000;
+	NEAR = 0.0001, FAR = 10000;
 
 // set size of the particles
-var particleSize = 0.003;
-
-// keep track of the mouse position
-var mouseX = 0, mouseY = 0;
+var particleSize = 0.004;
 
 function onLoad() {
 	initScene();
@@ -30,17 +27,17 @@ function initScene() {
 	// this is the scene all objects will be added to
 	scene = new THREE.Scene();
 	// ambient light
-	ambient = new THREE.AmbientLight( 0x999999 );
+	ambient = new THREE.AmbientLight( 0x990099 ); //0x999999 );
 	scene.add( ambient );
 
 	camera = new THREE.PerspectiveCamera(VIEW_ANGLE, ASPECT, NEAR, FAR);
-	camera.position.z = 2;
-	// scene.add( camera );
+	camera.position.z = 1.5;
+	scene.add( camera );
 
 	// set the camera's behaviour and sensitivity
 	controls = new THREE.OrbitControls( camera, viewer );
 	controls.rotateSpeed = 5.0;
-	controls.zoomSpeed = 5;
+	controls.zoomSpeed = 3;
 	controls.panSpeed = 2;
 	controls.noZoom = false;
 	controls.noPan = false;
@@ -59,23 +56,13 @@ function animate() {
 	renderer.render(scene, camera);
 }
 
-function load_cloud(data) {
+function loadCloud(data) {
 	model = new THREE.Geometry();
 	model.dynamic = true;
 
 	// points are stored in a giant string, with 1 point on each line: x y z r g b, separated by whitespace
 	var cloud = data.split('\n');
-	console.log(cloud.length);
-
-	// initialize min and max coords
-	min_x = 0;
-	min_y = 0;
-	min_z = 0;
-	max_x = 0;
-	max_y = 0;
-	max_z = 0;
-
-	colours = [];
+	var colours = [];
 
 	// load the points
 	for (var i=0; i<cloud.length; i++) {
@@ -83,13 +70,6 @@ function load_cloud(data) {
 		var x = parseFloat(pt[0]);
 		var y = -parseFloat(pt[1]);
 		var z = parseFloat(pt[2]);
-
-		if (x < min_x) {min_x = x;}
-		if (x > max_x) {max_x = x;}
-		if (y < min_y) {min_y = y;}
-		if (y > max_y) {max_y = y;}
-		if (z < min_z) {min_z = z;}
-		if (z > max_z) {max_z = z;}
 
 		var colour = 'rgb(' + parseFloat(pt[3]) + ',' + parseFloat(pt[4]) + ',' + parseFloat(pt[5]) + ')';
 		model.vertices.push( new THREE.Vector3(x, y, z) );
@@ -103,9 +83,7 @@ function load_cloud(data) {
 	scene.add(particles);
 }
 
-function clear_scene() {
-	console.log("clearing scene");
-	console.log(scene);
+function clearScene() {
 	if (scene.__webglObjects.length > 0) {
 		scene.remove(particles);
 	}

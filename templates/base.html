@@ -1,15 +1,16 @@
 <html>
     <head>
-        <title>RECONSTRUCT - 3D FROM 2D</title>
+        <title>RECONSTRUCT</title>
         <link rel="stylesheet" href="/static/css/bootstrap.min.css">
         <link rel="stylesheet" href="/static/css/style.css">
     </head>
     <body onLoad="onLoad();">
+        <div class="preloader"><img id='preloader' src='/static/img/preloader.gif'></div>
         <div class="navbar">
             <div class="navbar-inner">
                 <div class="container">
                     <ul class="nav">
-                        <li><a href="{{url_for("index")}}">Point Cloud Viewer</a></li>
+                        <li><a href="{{url_for("index")}}">RECONSTRUCT</a></li>
                         <li><a href="{{url_for("register")}}">Register</a></li>
                         <li><a href="{{url_for("login")}}">Login</a></li>
                         <li><a href="{{url_for("logout")}}">Logout</a></li>
@@ -22,6 +23,7 @@
             <br>
             {% block body %}
             {% endblock %}
+            <br>
             </p>
         </div>
         <script type="text/javascript" src="/static/js/jquery-1.8.3.min.js"></script>

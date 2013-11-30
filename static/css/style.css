@@ -1,5 +1,14 @@
-a:hover { /* for links in navbar */
+li > a:hover { /* for links in navbar */
     color: #E3A71B;
+}
+
+#preloader {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    margin-left: -110px; /* half the width of the preloader gif */
+    margin-top: -10px; /* half the height of the preloader gif */
 }
 
 .point_clouds { /* for My point clouds heading */
@@ -166,4 +175,15 @@ input { /* for input fields on register and login pages */
 
 canvas { /* for ThreeJS viewer */
     background-color: black;
+    margin-bottom: 40px;
+}
+
+.download {
+    margin-bottom: 20px;
+}
+
+.downloadbtn {
+    float: left;
+    width: 15%;
+    margin: 0 10 50 0;
 }

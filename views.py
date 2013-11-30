@@ -5,6 +5,7 @@ import config
 import model
 from model import session as model_session
 import reconstruct
+import display_vtk
 import base64
 import re
 
@@ -15,10 +16,11 @@ app.config.from_object(config)
 @app.route('/')
 def index():
     username = session.get('username')
+    print "index: ", username
     if username:
         return redirect(url_for('display_user', username=username))
     else:
-        return render_template('index.html', username=username)
+        return render_template('index.html')
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -71,8 +73,12 @@ def upload():
 
     images = sorted(path + '/' + img for img in os.listdir(path) if img.rpartition('.')[2].lower() in ('jpg', 'jpeg', 'png'))
     points_path = os.path.abspath(os.path.join(path, "points"))
-    reconstruct.start(images, filename=points_path, choice=algorithm)
-    points = str(reconstruct.extract_points(points_path + ".txt"))
+    reconstruct.start(algorithm, images, file_path=points_path)
+
+    if algorithm == 'features':
+        points = str(reconstruct.extract_points(points_path + "_inliers.txt"))
+    elif algorithm == 'flow':
+        points = str(reconstruct.extract_points(points_path + ".txt"))
 
     # set the path to the text file storing the 3D points of the cloud
     cloud = model_session.query(model.Cloud).filter_by(id=cloud_id).first()
@@ -88,13 +94,14 @@ def upload():
         model_session.commit()
         model_session.refresh(new_photo)
 
-    return points
+    cloud_data = {'cloud_id': cloud_id, 'points': points}
+
+    return jsonify(cloud_data)
 
 @app.route('/cloud/<id>')
 def get_cloud(id):
     '''Gets the 3D points for a past point cloud.'''
-    cloud_id = id
-    path = model_session.query(model.Cloud).filter_by(id=cloud_id).first().path
+    path = model_session.query(model.Cloud).filter_by(id=id).first().path
     points = str(reconstruct.extract_points(path + '/points.txt'))
     return points
 
@@ -116,6 +123,14 @@ def remove_cloud(user_id, cloud_id):
         model.delete_photos(cloud_id=cloud_id)
         model.delete_cloud(cloud_id=cloud_id)
     return "Successfully deleted cloud."
+
+@app.route('/download/<cloud_id>')
+def get_download(cloud_id):
+    path = model_session.query(model.Cloud).filter_by(id=cloud_id).first().path
+    txt = path + '/points.txt'
+    pcd = path + '/points.pcd'
+    paths = {'txt': txt, 'pcd': pcd}
+    return jsonify(paths)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -169,13 +184,16 @@ def logout():
 @app.route('/<username>')
 def display_user(username):
     username = session.get('username')
-    if username:
+    print username, username != None
+    if username != None:
         try:
             user_id = model_session.query(model.User).filter_by(username=username).first().id
             clouds = model_session.query(model.User).filter_by(id=user_id).first().clouds
+            print username, user_id, clouds
             return render_template('display_user.html', username=username, user_id=user_id, clouds=clouds)
         except:
             return redirect(url_for('login'))
+    return redirect(url_for('index'))
 
 if __name__ == "__main__":
     app.run(debug=True)

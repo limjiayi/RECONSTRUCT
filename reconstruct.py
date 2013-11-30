@@ -1,54 +1,9 @@
+import sys
 import numpy as np
 import draw, display_vtk
 from processing import *
 from rich_features import *
 from optical_flow import *
-
-def load_points(filename):
-    '''Loads .txt and .pcd files.'''
-    format = filename.rpartition('.')[2]
-    if format == 'txt':
-        data = np.loadtxt(filename)
-        pt_cloud = data[:,:3]
-        colours = data[:,3:]
-
-    elif format == 'pcd':
-        data = np.loadtxt(filename)[11:]
-        pt_cloud = data[:,:3]
-        colours = data[:,3:]
-
-    display_vtk.vtk_show_points(pt_cloud, list(colours))
-
-def save_points(choice, images, pt_cloud, colours, filename=None, save_format='txt'):
-    '''Saves point cloud data in .txt or .pcd formats.'''
-    if filename is None:
-        filename = 'points/' + images[0].split('/')[1].lower() + '_' + choice
-
-    if save_format == 'txt':
-        data = np.hstack((pt_cloud, colours))
-        np.savetxt('%s.%s' % (filename, save_format), data, delimiter=" ")
-
-    elif save_format == 'pcd':
-        header = ['# .PCD v.7 - Point Cloud Data file format', 
-                      'VERSION.7', 'FIELDS x y z rgb', 'SIZE 4 4 4 4', 
-                      'TYPE F F F F', 'COUNT 1 1 1 1', 'WIDTH %s' % pt_cloud.shape[0], 
-                      'HEIGHT 1', 'VIEWPOINT = 0 0 0 1 0 0 0', 
-                      'POINTS %s' % pt_cloud.shape[0], 'DATA ascii']
-
-        colours = np.array([ c[0]*256*256 + c[1]*256 + c[2] for c in colours ])
-        data = np.vstack((pt_cloud.T, colours)).T
-
-        with open('%s.%s' % (filename, save_format), 'w') as f:
-            for item in header:
-                f.write(item + '\n')
-            for pt in data:
-                f.write(np.array_str(pt).strip('[]') + '\n')
-    print "    Saved file as %s.%s" % (filename, save_format)
-
-
-def extract_points(filename):
-    with open(filename, 'r') as f:
-        return f.read()
 
 def gen_pt_cloud(i, prev_sensor, image1, image2, poses, choice):
     '''Generates a point cloud for a pair of images.'''
@@ -88,7 +43,7 @@ def gen_pt_cloud(i, prev_sensor, image1, image2, poses, choice):
 
     # use Farneback's dense optical flow tracking to compute point correspondences
     elif choice == 'flow':
-        while img1.shape[0] > 700 or img1.shape[1] > 700:
+        while img1.shape[0] > 1000 or img1.shape[1] > 1000:
             img1, img2 = downsample_images(img1, img2)
             img1_gray, img2_gray = gray_downsampled(img1, img2)
         print "    Calculating optical flow..."
@@ -154,10 +109,9 @@ def find_new_pts_feat(i, prev_sensor, image1, image2, prev_kp, prev_des, prev_fi
 def find_new_pts_flow(i, prev_sensor, image1, image2, poses, pt_cloud_indexed):
     print "    Loading images..."
     img1, img2 = load_images(image1, image2)
-    while img1.shape[0] > 700 or img1.shape[1] > 700:
+    while img1.shape[0] > 1000 or img1.shape[1] > 1000:
         img1, img2 = downsample_images(img1, img2)
         img1_gray, img2_gray = gray_downsampled(img1, img2)
-    # img1_gray, img2_gray = gray_images(img1, img2)
     print "    Building camera calibration matrices..."
     sensor_i, K1, K2 = build_calibration_matrices(i, prev_sensor, image1, image2)
 
@@ -190,7 +144,7 @@ def find_new_pts_flow(i, prev_sensor, image1, image2, poses, pt_cloud_indexed):
     return sensor_i, poses, homog_3D, pts_3D, img_colours, pt_cloud_indexed
 
 
-def start(images, filename=None, choice='features'):
+def start(choice, images, file_path=None):
     '''Loop through each pair of images, find point correspondences and generate 3D point cloud.
     For each new frame, find additional points and add them to the overall point cloud.'''
     prev_sensor = 0
@@ -206,15 +160,10 @@ def start(images, filename=None, choice='features'):
                 prev_sensor, prev_kp, prev_des, prev_filter, homog_3D, pts_3D, img_colours, pt_cloud_indexed = gen_pt_cloud(i, prev_sensor, images[i], images[i+1], poses, choice)
                 pt_cloud = np.array(pts_3D)
                 colours = np.array(img_colours)
-
             elif i >= 1:
-                # try:
                 prev_sensor, prev_kp, prev_des, prev_filter, poses, homog_3D, pts_3D, img_colours, pt_cloud_indexed = find_new_pts_feat(i, prev_sensor, images[i], images[i+1], prev_kp, prev_des, prev_filter, poses, pt_cloud_indexed)
                 pt_cloud = np.vstack((pt_cloud, pts_3D))
                 colours = np.vstack((colours, img_colours))
-                # except:
-                #     print "Error occurred in OpenCV."
-                #     break
 
         elif choice == 'flow':
             if i == 0:
@@ -222,38 +171,46 @@ def start(images, filename=None, choice='features'):
                 prev_sensor, homog_3D, pts_3D, img_colours, pt_cloud_indexed = gen_pt_cloud(i, prev_sensor, images[i], images[i+1], poses, choice)
                 pt_cloud = np.array(pts_3D)
                 colours = np.array(img_colours)
-
+                print len(pt_cloud), len(colours)
             elif i >= 1:
                 prev_sensor, poses, homog_3D, pts_3D, img_colours, pt_cloud_indexed = find_new_pts_flow(i, prev_sensor, images[i], images[i+1], poses, pt_cloud_indexed)
                 pt_cloud = np.vstack((pt_cloud, pts_3D))
                 colours = np.vstack((colours, img_colours))
 
-    # max_track = 0
-    # for pt in pt_cloud_indexed:
-    #     if len(pt.origin) > max_track:
-    #         max_track = len(pt.origin)
-    # print "longest tracks: ", max_track
+    if choice == 'features':
+        save_points(choice, images, pt_cloud, colours, file_path, save_format='pcd')
+        save_points(choice, images, pt_cloud, colours, file_path, save_format='txt')
+        print "    Removing outliers..."
+        remove_outliers(file_path + '.pcd')
+        pcd_to_txt(file_path + '.txt', file_path + '_inliers' + '.pcd')
+
+    elif choice == 'flow':
+        save_points(choice, images, pt_cloud, colours, file_path, save_format='pcd')
+        save_points(choice, images, pt_cloud, colours, file_path, save_format='txt')
 
     # homog_pt_cloud = np.vstack((pt_cloud.T, np.ones(pt_cloud.shape[0])))
     # draw.draw_matches(src_pts, dst_pts, img1_gray, img2_gray)
     # draw.draw_epilines(src_pts, dst_pts, img1_gray, img2_gray, F, mask)
     # draw.draw_projected_points(homog_pt_cloud, P)
-    save_points(choice, images, pt_cloud, colours, filename, save_format='txt')
-    display_vtk.vtk_show_points(pt_cloud, list(colours))
+
+    # display_vtk.vtk_show_points(pt_cloud, list(colours))
+    load_points(file_path + '.' + save_format)
 
 
 def main():
-    load_filename = ''#points/statue.txt'
+    choice = sys.argv[1]
+    load_filename = ''#points/alcatraz1_inliers.txt'
 
     if load_filename != '':
         load_points(load_filename)
     else:
-        directory = 'images/statue'
-        # images = ['images/statue/P1000965.JPG', 'images/statue/P1000966.JPG']
+        directory = 'images/ET'
+        # images = ['images/kermit/kermit000.jpg', 'images/kermit/kermit003.jpg']
         # images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000003.jpg']
         # images = ['images/ucd_coffeeshack_all/00000000.JPG', 'images/ucd_coffeeshack_all/00000003.JPG']
         images = sort_images(directory)
-        start(images[:], choice='flow')
+        save_filepath = 'points/' + images[0].rpartition('/')[2].rpartition('.')[0]
+        start(choice, images[:4], file_path=save_filepath)
 
 
 if __name__ == "__main__":
