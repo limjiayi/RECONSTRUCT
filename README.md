@@ -16,8 +16,8 @@ Technologies used: Python, OpenCV, NumPy, SciPy, SQLite, PostgreSQL, SQLAlchemy
 
 ## Examples
 
-[Sparse point cloud from feature matching](http://i.imgur.com/5710FTz.png)
-[Dense point cloud from optical flow](http://i.imgur.com/sDdXn8h.png)
+![Sparse point cloud from feature matching](http://i.imgur.com/5710FTz.png)
+![Dense point cloud from optical flow](http://i.imgur.com/sDdXn8h.png)
 
 ## Post-Hackbright goals
 
