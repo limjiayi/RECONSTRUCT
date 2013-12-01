@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import math
 
 class Point3D(object):
     def __init__(self, coords, origin):
@@ -24,11 +25,14 @@ def gray_downsampled(img1, img2):
 
     return img1_gray, img2_gray
 
+def magnitude(vector):
+    return math.sqrt(vector[0]**2 + vector[1]**2)
+
 def calc_flow(img1_gray, img2_gray):
     '''The flow is a HxWx2 array of motion flow vectors.'''
     PYR_SCALE, LEVELS = 0.5, 3
-    WINSIZE, ITERATIONS = 15, 3
-    POLY_N, POLY_SIGMA = 5, 1.2
+    WINSIZE, ITERATIONS = 15, 10
+    POLY_N, POLY_SIGMA = 5, 1.1
     FLAGS = 1
 
     flow = cv2.calcOpticalFlowFarneback(img1_gray, img2_gray, PYR_SCALE, LEVELS, WINSIZE, ITERATIONS, POLY_N, POLY_SIGMA, FLAGS)
@@ -36,10 +40,13 @@ def calc_flow(img1_gray, img2_gray):
 
 def match_points(img2, flow):
     '''Finds points in the second image that matches the first, based on the motion flow vectors.'''
+    # min and max magnitudes of the motion flow vector to be included in the reconstruction
+    MIN_MAG, MAX_MAG = 1, 100
     # create an empty HxW array to store the dst points
     h, w = img2.shape[0], img2.shape[1]
-    src_pts = [ [[col, row]] for row in xrange(h) for col in xrange(w) if (0 < int(row + flow[row, col][0]) < h) and (0 < int(col + flow[row, col][1]) < w) ]
-    dst_pts = [ [[int(col + flow[row, col][1]), int(row + flow[row, col][0])]] for row in xrange(h) for col in xrange(w) if (0 < int(row + flow[row, col][0]) < h) and (0 < int(col + flow[row, col][1]) < w) ]
+
+    src_pts = [ [[col, row]] for row in xrange(h) for col in xrange(w) if (0 < int(row + flow[row, col][0]) < h) and (0 < int(col + flow[row, col][1]) < w) and MIN_MAG < magnitude(flow[row, col]) < MAX_MAG ]
+    dst_pts = [ [[int(col + flow[row, col][1]), int(row + flow[row, col][0])]] for row in xrange(h) for col in xrange(w) if (0 < int(row + flow[row, col][0]) < h) and (0 < int(col + flow[row, col][1]) < w) and MIN_MAG < magnitude(flow[row, col]) < MAX_MAG ]
     src_pts = np.array(src_pts)
     dst_pts = np.array(dst_pts)
     # src and dst pts are Nx1x2 arrays that contain the x and y coordinates of the matching points

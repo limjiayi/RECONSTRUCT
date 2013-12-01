@@ -43,7 +43,7 @@ def gen_pt_cloud(i, prev_sensor, image1, image2, poses, choice):
 
     # use Farneback's dense optical flow tracking to compute point correspondences
     elif choice == 'flow':
-        while img1.shape[0] > 1000 or img1.shape[1] > 1000:
+        while img1.shape[0] > 700 or img1.shape[1] > 700:
             img1, img2 = downsample_images(img1, img2)
             img1_gray, img2_gray = gray_downsampled(img1, img2)
         print "    Calculating optical flow..."
@@ -61,6 +61,7 @@ def gen_pt_cloud(i, prev_sensor, image1, image2, poses, choice):
         print "    Triangulating 3D points..."
         homog_3D, pts_3D, infront = triangulate_points(P1, P2, refined_pts1, refined_pts2)
         norm_pts1, norm_pts2 = apply_infront_filter(infront, norm_pts1, norm_pts2)
+        pts_3D, norm_pts1, norm_pts2 = filter_outliers(pts_3D, norm_pts1, norm_pts2)
 
         print "    Extracting colour information..."
         img1_pts, img2_pts, img_colours = get_colours(img1, K1, K2, norm_pts1, norm_pts2, homog_3D)
@@ -109,7 +110,7 @@ def find_new_pts_feat(i, prev_sensor, image1, image2, prev_kp, prev_des, prev_fi
 def find_new_pts_flow(i, prev_sensor, image1, image2, poses, pt_cloud_indexed):
     print "    Loading images..."
     img1, img2 = load_images(image1, image2)
-    while img1.shape[0] > 1000 or img1.shape[1] > 1000:
+    while img1.shape[0] > 700 or img1.shape[1] > 700:
         img1, img2 = downsample_images(img1, img2)
         img1_gray, img2_gray = gray_downsampled(img1, img2)
     print "    Building camera calibration matrices..."
@@ -160,6 +161,7 @@ def start(choice, images, file_path=None):
                 prev_sensor, prev_kp, prev_des, prev_filter, homog_3D, pts_3D, img_colours, pt_cloud_indexed = gen_pt_cloud(i, prev_sensor, images[i], images[i+1], poses, choice)
                 pt_cloud = np.array(pts_3D)
                 colours = np.array(img_colours)
+                print "shapes: ", pt_cloud.shape, colours.shape
             elif i >= 1:
                 prev_sensor, prev_kp, prev_des, prev_filter, poses, homog_3D, pts_3D, img_colours, pt_cloud_indexed = find_new_pts_feat(i, prev_sensor, images[i], images[i+1], prev_kp, prev_des, prev_filter, poses, pt_cloud_indexed)
                 pt_cloud = np.vstack((pt_cloud, pts_3D))
@@ -204,11 +206,12 @@ def main():
     if load_filename != '':
         load_points(load_filename)
     else:
-        directory = 'images/ET'
+        # directory = 'images/ucd_building4_all'
+        # images = ['images/statue/P1000965.JPG', 'images/statue/P1000969.JPG']
         # images = ['images/kermit/kermit000.jpg', 'images/kermit/kermit003.jpg']
-        # images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000003.jpg']
+        images = ['images/ucd_building4_all/00000000.jpg', 'images/ucd_building4_all/00000002.jpg', 'images/ucd_building4_all/00000003.jpg']
         # images = ['images/ucd_coffeeshack_all/00000000.JPG', 'images/ucd_coffeeshack_all/00000003.JPG']
-        images = sort_images(directory)
+        # images = sort_images(directory)
         save_filepath = 'points/' + images[0].rpartition('/')[2].rpartition('.')[0]
         start(choice, images[:4], file_path=save_filepath)
 

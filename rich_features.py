@@ -8,8 +8,9 @@ class Point3D(object):
 
 def find_keypoints_descriptors(img):
     '''Detects keypoints and computes their descriptors.'''
-    # initiate detector
+    # initiate detector with a specified Hessian threshold (default: 100)
     detector = cv2.SURF()
+    # detector.extended = True
 
     # find the keypoints and descriptors
     kp, des = detector.detectAndCompute(img, None)
