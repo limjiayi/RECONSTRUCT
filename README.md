@@ -14,7 +14,7 @@ The actual reconstruction is done mainly using Python and OpenCV, and encompasse
 
 Technologies used: Python, OpenCV, NumPy, SciPy, SQLite, PostgreSQL, SQLAlchemy
 
-## Examples
+### Examples
 
 ![Sparse point cloud from feature matching](http://i.imgur.com/5710FTz.png)
 ![Dense point cloud from optical flow](http://i.imgur.com/sDdXn8h.png)
