@@ -16,7 +16,6 @@ app.config.from_object(config)
 @app.route('/')
 def index():
     username = session.get('username')
-    print "index: ", username
     if username:
         return redirect(url_for('display_user', username=username))
     else:
@@ -111,7 +110,7 @@ def get_past_clouds(user_id):
     if user_id:
         clouds = model_session.query(model.User).filter_by(id=user_id).first().clouds
         if clouds != "":
-            clouds_d = dict( (cloud.name, [ photo.to_dict() for photo in cloud.photos ]) for cloud in clouds )
+            clouds_d = dict( (",".join([str(cloud.id), cloud.name]), [ photo.to_dict() for photo in cloud.photos ]) for cloud in clouds )
             return jsonify(clouds_d)
     return None
 
@@ -184,12 +183,10 @@ def logout():
 @app.route('/<username>')
 def display_user(username):
     username = session.get('username')
-    print username, username != None
     if username != None:
         try:
             user_id = model_session.query(model.User).filter_by(username=username).first().id
             clouds = model_session.query(model.User).filter_by(id=user_id).first().clouds
-            print username, user_id, clouds
             return render_template('display_user.html', username=username, user_id=user_id, clouds=clouds)
         except:
             return redirect(url_for('login'))

@@ -184,7 +184,7 @@ function pastClouds() {
                     //display the previous point clouds if there are any
                     for (var key in data) {
                         if (data[key][0] && data[key][0]['cloud_id']) {
-                            var $div = $('<div class="cloud" data-cloud-id="' + data[key][0]['cloud_id'] + '"><div class="desc">Name: ' + key + '<br>Created on: ' + data[key][0]['uploaded_on'].split(' ')[0] + '</div>'); // name of cloud
+                            var $div = $('<div class="cloud" data-cloud-id="' + key.split(',')[0] + '"><div class="desc">Name: ' + key.split(',')[1] + '<br>Created on: ' + data[key][0]['uploaded_on'].split(' ')[0] + '</div>');
                             $('#clouds').append($div);
 
                             for (var i=0; i < data[key].length; i++) {

@@ -19,7 +19,7 @@ def load_images(filename1, filename2):
 
     return img1, img2
 
-def build_calibration_matrices(i, prev_sensor, filename1, filename2):
+def build_calibration_matrices(i, prev_sensor, K_matrices, filename1, filename2):
     '''Extract exif metadata from image files, and use them to build the 2 calibration matrices.'''
 
     def get_sensor_sizes(i, prev_sensor, metadata1, metadata2):
@@ -36,8 +36,6 @@ def build_calibration_matrices(i, prev_sensor, filename1, filename2):
 
     metadata1 = GExiv2.Metadata(filename1)
     metadata2 = GExiv2.Metadata(filename2)
-    print metadata1['Exif.Image.Model']
-    print metadata2['Exif.Image.Model']
 
     if metadata1.get_supports_exif() and metadata2.get_supports_exif():
             sensor_1, sensor_2 = get_sensor_sizes(i, prev_sensor, metadata1, metadata2)
@@ -62,7 +60,13 @@ def build_calibration_matrices(i, prev_sensor, filename1, filename2):
     f2_px = (w2 * f2_mm) / sensor_2
     K2 = np.array([[f2_px, 0, w2/2], [0, f2_px, h2/2], [0,0,1]])
 
-    return sensor_2, K1, K2
+    if i == 0:
+        K_matrices.append(K1)
+        K_matrices.append(K2)
+    elif i >= 1:
+        K_matrices.append(K2)
+
+    return sensor_2, K_matrices
 
 def gray_images(img1, img2):
     '''Convert images to grayscale if the images are found.'''
@@ -74,8 +78,7 @@ def gray_images(img1, img2):
 
     return img1_gray, img2_gray
 
-def normalize_points(K1, K2, src_pts, dst_pts):
-    print src_pts.shape, dst_pts.shape
+def normalize_points(K_matrices, src_pts, dst_pts):
     '''Normalize points by multiplying them with the inverse of the K matrix.'''
     # convert to 3xN arrays by making the points homogeneous
     src_pts = np.vstack((np.array([ pt[0] for pt in src_pts ]).T, np.ones(src_pts.shape[0])))
@@ -83,6 +86,8 @@ def normalize_points(K1, K2, src_pts, dst_pts):
 
     # normalize with the calibration matrices
     # norm_pts1 and norm_pts2 are 3xN arrays
+    K1 = K_matrices[-2]
+    K2 = K_matrices[-1]
     norm_pts1 = np.dot(np.linalg.inv(K1), src_pts)
     norm_pts2 = np.dot(np.linalg.inv(K2), dst_pts)
 
@@ -92,8 +97,10 @@ def normalize_points(K1, K2, src_pts, dst_pts):
 
     return norm_pts1, norm_pts2
 
-def find_essential_matrix(K, norm_pts1, norm_pts2):
+def find_essential_matrix(K_matrices, norm_pts1, norm_pts2):
     '''Estimate an essential matrix that satisfies the epipolar constraint for all the corresponding points.'''
+    # K = K1, the calibration matrix of the first camera of the current image pair 
+    K = K_matrices[-2]
     # convert to Nx2 arrays for findFundamentalMat
     norm_pts1 = np.array([ pt[0] for pt in norm_pts1 ])
     norm_pts2 = np.array([ pt[0] for pt in norm_pts2 ])
@@ -160,8 +167,8 @@ def triangulate_points(P1, P2, refined_pts1, refined_pts2):
         d1 = np.dot(P1, homog_3D)[2]
         d2 = np.dot(P2[i], homog_3D)[2]
         
-        if sum(d1>0) + sum(d2<0) > maxres:
-            maxres = sum(d1>0) + sum(d2<0)
+        if sum(d1 > 0) + sum(d2 < 0) > maxres:
+            maxres = sum(d1 > 0) + sum(d2 < 0)
             ind = i
             infront = (d1 > 0) & (d2 < 0)
 
@@ -180,8 +187,28 @@ def apply_infront_filter(infront, norm_pts1, norm_pts2):
     norm_pts2 = norm_pts2[infront.ravel()==1]
     return norm_pts1, norm_pts2
 
-def get_colours(img1, K1, K2, norm_pts1, norm_pts2, homog_3D):
+def filter_outliers(pts_3D, norm_pts1, norm_pts2):
+    '''Remove points that are too far away from the median.'''
+    x, y, z = pts_3D.T[0], pts_3D.T[1], pts_3D.T[2]
+    x_med, y_med, z_med = np.median(x), np.median(y), np.median(z)
+    x_std, y_std, z_std = np.std(x), np.std(y), np.std(z)
+
+    N = 2 # number of std devs
+    x_mask = [ True if ( x_med - N*x_std < coord < x_med + N*x_std) else False for coord in x ]
+    y_mask = [ True if ( y_med - N*y_std < coord < y_med + N*y_std) else False for coord in y ]
+    z_mask = [ True if ( z_med - N*z_std < coord < z_med + N*z_std) else False for coord in z ]
+    mask = [ all(tup) for tup in zip(x_mask, y_mask, z_mask) ]
+
+    pts_3D = [ pt[0] for pt in zip(pts_3D, mask) if pt[1] ]
+    norm_pts1 = [ pt[0] for pt in zip(norm_pts1, mask) if pt[1] ]
+    norm_pts2 = [ pt[0] for pt in zip(norm_pts2, mask) if pt[1] ]
+
+    return pts_3D, norm_pts1, norm_pts2
+
+def get_colours(img1, K_matrices, norm_pts1, norm_pts2, homog_3D):
     '''Extract RGB data from the original images and store them in new arrays.'''
+    K1 = K_matrices[-2]
+    K2 = K_matrices[-1]
     # get the original x and y image coords
     norm_pts1 = np.array([ pt[0] for pt in norm_pts1 ])
     norm_pts1 = np.vstack((norm_pts1.T, np.ones(norm_pts1.shape[0])))
@@ -195,8 +222,9 @@ def get_colours(img1, K1, K2, norm_pts1, norm_pts2, homog_3D):
 
     return img1_pts, img2_pts, img_colours
 
-def compute_cam_pose(K1, matched_pts_2D, matched_pts_3D, poses):
+def compute_cam_pose(K_matrices, matched_pts_2D, matched_pts_3D, poses):
     '''Compute the camera pose from a set of 3D and 2D correspondences.'''
+    K1 = K_matrices[-2]
     rvec, tvec = cv2.solvePnPRansac(matched_pts_3D, matched_pts_2D, K1, None)[0:2]
     rmat = cv2.Rodrigues(rvec)[0]
     pose = np.hstack((rmat, tvec))
@@ -223,8 +251,6 @@ def rgb_to_int(colours):
 
 def save_points(choice, images, pt_cloud, colours, file_path=None, save_format='txt'):
     '''Saves point cloud data in .txt or .pcd formats.'''
-    print choice, file_path, save_format
-    print len(pt_cloud), len(colours)
     if file_path is None:
         file_path = 'points/' + images[0].split('/')[1].lower() + '_' + choice
 
@@ -247,7 +273,7 @@ def save_points(choice, images, pt_cloud, colours, file_path=None, save_format='
                 f.write(item + '\n')
             for pt in data:
                 f.write(np.array_str(pt).strip('[]') + '\n')
-    print "    Saved file as %s.%s" % (file_path.rpartition('/')[2], save_format)
+    # print "    Saved file as %s.%s" % (file_path.rpartition('/')[2], save_format)
 
 def remove_outliers(file_path):
     points = pcl.PointCloud()
@@ -266,7 +292,7 @@ def check_line(orig_file, line):
             line_o = [ round(float(k), 5) for k in line_o.split() ]
 
             if line == line_o[:3]:
-                return True, " ".join( [ str(val) for val in line_o ] )
+                return True, ' '.join( [ str(val) for val in line_o ] )
     return False, None
 
 def pcd_to_txt(orig_file, file_read):
@@ -286,3 +312,29 @@ def pcd_to_txt(orig_file, file_read):
 def extract_points(file_path):
     with open(file_path, 'r') as f:
         return f.read()
+
+def write_points_ba(pt_cloud_indexed, num_views, K_matrices, poses):
+    with open('ba.txt', 'w') as f:
+        # no. of 3D points, views and 2D measurements
+        M = len(pt_cloud_indexed)   # number of 3D points
+        N = num_views               # number of views: len(images)
+        K = reduce(lambda x, y: x+y, [ len(pt.origin) for pt in pt_cloud_indexed ]) # number of 2D points
+        f.write(' '.join([ str(i) for i in [M, N, K] ]))
+
+        # K matrices
+        K_matrices = [ matrix.ravel().tolist() for matrix in K_matrices ]
+        K_matrices = [ [ matrix[0], matrix[1], matrix[2], matrix[4], matrix[5], 0, 0, 0, 0 ] for matrix in K_matrices ]
+        for matrix in K_matrices:
+            f.write(str(matrix).strip('[]') + '\n')
+
+        # 3D point positions
+        for idx, pt in enumerate(pt_cloud_indexed):
+            f.write(' '.join([ str(idx), str(pt.coords) ]) + '\n')
+
+        # camera poses
+        poses = [ pose.ravel().tolist() for pose in poses ]
+        for idx, pose in enumerate(poses):
+            f.write(' '.join([ str(i) for i in pose ]) + '\n')
+
+        # 2D image measurements
+        

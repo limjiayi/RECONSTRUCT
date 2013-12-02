@@ -36,8 +36,8 @@ function initScene() {
 
 	// set the camera's behaviour and sensitivity
 	controls = new THREE.OrbitControls( camera, viewer );
-	controls.rotateSpeed = 5.0;
-	controls.zoomSpeed = 3;
+	controls.rotateSpeed = 3.0;
+	controls.zoomSpeed = 2;
 	controls.panSpeed = 2;
 	controls.noZoom = false;
 	controls.noPan = false;
@@ -52,7 +52,7 @@ function animate() {
 
 	// on every frame, calculate the new camera position and have it look at the center of the scene
 	controls.update();
-	camera.lookAt(scene.position);
+	// camera.lookAt(scene.position);
 	renderer.render(scene, camera);
 }
 
@@ -67,7 +67,7 @@ function loadCloud(data) {
 	// load the points
 	for (var i=0; i<cloud.length; i++) {
 		var pt = cloud[i].split(" ");
-		var x = parseFloat(pt[0]);
+		var x = -parseFloat(pt[0]);
 		var y = -parseFloat(pt[1]);
 		var z = parseFloat(pt[2]);
 
