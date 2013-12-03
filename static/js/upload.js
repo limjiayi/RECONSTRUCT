@@ -1,4 +1,25 @@
 $(document).ready(function() {
+    $('#viewer').hide();
+    $('#upload').hide();
+    $('#download').hide();
+    $('#add').bind('click', function() {
+        $('#library').slideUp('slow');
+        $('#upload').slideDown('slow');
+    });
+    $('#back').bind('click', function() {
+        $('#upload').slideUp('slow');
+        $('#library').slideDown('slow');
+    });
+    $('#my_clouds').bind('click', function() {
+        $('#viewer').slideUp('slow');
+        $('#download').slideUp('slow');
+        $('#library').slideDown('slow');
+    });
+    $('#create').bind('click', function() {
+        $('#viewer').slideUp('slow');
+        $('#download').slideUp('slow');
+        $('#upload').slideDown('slow');
+    });
     $('#preloader').bind('ajaxSend', function() {
         $(this).show();
         startDisable();
@@ -98,6 +119,10 @@ function startEnable() {
                 selectedPhotos.push(photos[i].src);
                 }
                 sendFiles(selectedPhotos);
+                clearScene();
+                $('#upload').slideUp('slow');
+                $('#viewer').slideDown('slow');
+                $('#download').slideDown('slow');
             }
         }
    });
@@ -144,7 +169,6 @@ function uploadFiles(formData) {
             var viewer = document.getElementById('viewer');
             viewer.setAttribute('data-cloud-id', cloud_id);
             var points = data['points'];
-            clearScene();
             loadCloud(points);
             pastClouds();
             showDownloads();
@@ -210,6 +234,8 @@ function pastClouds() {
                             $loadbtn.bind('click', function() {
                                 var cloud_id = $(this).parent('.cloud').data('cloud-id');
                                 chooseCloud(cloud_id);
+                                $('#library').slideUp('slow');
+                                $('#viewer').slideDown('slow');
                             });
                         } // add delete button
                         var deleteButtons = document.getElementsByClassName('deletebtn');
@@ -279,6 +305,7 @@ function showDownloads() {
                     pcdButton.href = pcdPath;
                 }
             }
+            $('#download').slideDown('slow');
         }
     });
 }
