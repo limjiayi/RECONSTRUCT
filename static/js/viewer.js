@@ -11,9 +11,14 @@ var VIEW_ANGLE = 70, ASPECT = WIDTH / HEIGHT,
 // set size of the particles
 var particleSize = 0.004;
 
-function onLoad() {
-	initScene();
-	animate();
+function startViewer() {
+	viewers = document.getElementsByTagName('canvas');
+	if (viewers.length === 0) {
+		initScene();
+		animate();
+	} else {
+		animate();
+	}
 }
 
 function initScene() {

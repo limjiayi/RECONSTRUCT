@@ -1,6 +1,12 @@
 $(document).ready(function() {
+    var clouds = document.getElementById('clouds');
+    if (clouds === null) { // not logged in
+        $('#upload').show();
+    } else {
+        $('#upload').hide();
+    }
     $('#viewer').hide();
-    $('#upload').hide();
+    $('#select').hide();
     $('#download').hide();
     $('#add').bind('click', function() {
         $('#library').slideUp('slow');
@@ -57,6 +63,7 @@ function drop(e) {
 }
 
 function handleFiles(files) {
+    $('#select').show();
     startButton = document.getElementsByClassName('startbtn');
     clearButton = document.getElementsByClassName('clearbtn');
     choiceButton = document.getElementsByClassName('choicebtn');
@@ -118,8 +125,9 @@ function startEnable() {
                 for (var i=0; i < photos.length; i++) {
                 selectedPhotos.push(photos[i].src);
                 }
-                sendFiles(selectedPhotos);
+                startViewer();
                 clearScene();
+                sendFiles(selectedPhotos);
                 $('#upload').slideUp('slow');
                 $('#viewer').slideDown('slow');
                 $('#download').slideDown('slow');
@@ -139,6 +147,11 @@ function clearPreview() {
         if (previews.length > 0) {
             $('.preview').remove();
         }
+        $cloudName = $('input:text');
+        $cloudName.val('');
+        $radioButtons = $('input:radio');
+        $radioButtons[0].checked = true;
+        $radioButtons[1].checked = false;
     });
 }
 
@@ -236,6 +249,7 @@ function pastClouds() {
                                 chooseCloud(cloud_id);
                                 $('#library').slideUp('slow');
                                 $('#viewer').slideDown('slow');
+                                startViewer();
                             });
                         } // add delete button
                         var deleteButtons = document.getElementsByClassName('deletebtn');
@@ -292,17 +306,16 @@ function showDownloads() {
                 if (downloadButtons.length === 0) {
                     $dlHeader = $('<h2 class="download">Download point cloud</h2>');
                     $('#download').append($dlHeader);
-                    $downloadbtn1 = $('<a href="' + txtPath + '" download="points.txt"><button class="downloadbtn" id="txt">Download txt</button></a>');
-                    $downloadbtn2 = $('<a href="' + pcdPath + '" downloads="points.pcd"><button class="downloadbtn" id="pcd">Download PCD</button></a>');
+                    $downloadbtn1 = $('<a id="txt" href="' + txtPath + '" download="points.txt"><button class="downloadbtn">Download txt</button></a>');
+                    $downloadbtn2 = $('<a id="pcd" href="' + pcdPath + '" downloads="points.pcd"><button class="downloadbtn">Download PCD</button></a>');
                     $('#download').append($downloadbtn1);
                     $('#download').append($downloadbtn2);
                     $('.downloadbtn').toggleClass('on');
-                }
-                else {
-                    txtButton = document.getElementById('txt');
-                    pcdButton = document.getElementById('pcd');
-                    txtButton.href = txtPath;
-                    pcdButton.href = pcdPath;
+                } else {
+                    txtLink = document.getElementById('txt');
+                    pcdLink = document.getElementById('pcd');
+                    txtLink.href = txtPath;
+                    pcdLink.href = pcdPath;
                 }
             }
             $('#download').slideDown('slow');

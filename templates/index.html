@@ -1,26 +1,27 @@
 {% extends 'base.html' %}
 {% block body %}
 
-    <div>
+    <div id='viewer'>
+        <div class="preloader"><img id='preloader' src='/static/img/preloader.gif'></div>
+        <h2 class='visualize'>My point cloud
+            <button class='direction' id='create'>Create new cloud &gt;&gt;</button>
+        </h2>
+    </div>
+
+    <div id='download'></div>
+
+    <div id='upload'>
         <h2>Upload photos</h2>
         <br>
         <div class='dropbox'>
             <div class='text'>Drag images here</div>
         </div>
         <br>
-
-        <h2>Select photos</h2><br>
-        <div id='preview'></div>
+        <div id='select'>
+            <h2>Select photos</h2>
+            <div id='preview'></div>
+        </div>
     </div>
     <br>
-
-    {% if username %}
-        <h2 class='visualize'>My point cloud</h2>
-    {% else %}
-        <h2 class='visualize'>Visualize point cloud</h2>
-    {% endif %}
-    
-    <div id='viewer'></div>
-    <div id='download'></div>
 
 {% endblock %}

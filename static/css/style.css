@@ -11,18 +11,19 @@ li > a:hover { /* for links in navbar */
     margin-top: -10px; /* half the height of the preloader gif */
 }
 
+.direction { /* for buttons to upload photos and go back to the library */
+    position: absolute;
+    right: 10px;
+    top: 5px;
+    font-size: 15px;
+}
+
 #library {
     position: relative;
 }
 
 .point_clouds { /* for My point clouds heading */
     margin-bottom: 15px;
-}
-
-#add { /* for button to go to upload photos from library */
-    position: absolute;
-    right: 10px;
-    top: 5px;
 }
 
 .cloud { /* for past point cloud */
@@ -54,8 +55,8 @@ li > a:hover { /* for links in navbar */
     opacity: 1;
 }
 
-#back {
-    margin-bottom: 10px;
+#upload {
+    position: relative;
 }
 
 .dropbox { /* for dropbox when nothing is being dragged inside */
@@ -187,22 +188,11 @@ input { /* for input fields on register and login pages */
     position: relative;
 }
 
-#library { /* button to go back to the library */
-    position: relative;
-    right: 10px;
-    top: 5px;
-}
-
-#create {
+#my_clouds { /* button to go back to library from viewer */
     position: absolute;
-    right: 10px;
+    right: 180px;
     top: 5px;
-}
-
-#my_clouds {
-    position: absolute;
-    right: 160px;
-    top: 5px;
+    font-size: 15px;
 }
 
 canvas { /* for ThreeJS viewer */
