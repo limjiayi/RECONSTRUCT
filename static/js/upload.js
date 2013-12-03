@@ -1,6 +1,7 @@
 $(document).ready(function() {
     $('#preloader').bind('ajaxSend', function() {
         $(this).show();
+        startDisable();
     }).bind('ajaxStop', function() {
         $(this).hide();
     }).bind('ajaxError', function() {
@@ -100,6 +101,11 @@ function startEnable() {
             }
         }
    });
+}
+
+function startDisable() {
+    $('.startbtn').unbind('click');
+    $('.startbtn').removeClass('on');
 }
 
 function clearPreview() {

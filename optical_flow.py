@@ -41,7 +41,7 @@ def calc_flow(img1_gray, img2_gray):
 def match_points(img2, flow):
     '''Finds points in the second image that matches the first, based on the motion flow vectors.'''
     # min and max magnitudes of the motion flow vector to be included in the reconstruction
-    MIN_MAG, MAX_MAG = 1, 100
+    MIN_MAG, MAX_MAG = 0.5, 100
     # create an empty HxW array to store the dst points
     h, w = img2.shape[0], img2.shape[1]
 
@@ -81,8 +81,8 @@ def attach_tracks(i, pts_3D, norm_pts1, norm_pts2, pt_cloud_indexed=[]):
     return pt_cloud_indexed
 
 def scan_tracks(i, norm_pts1, norm_pts2, pt_cloud_indexed):
-    matched_pts_2D = [ norm_pts2[num] for (num, pt_2D) in enumerate(norm_pts1) for pt_3D in pt_cloud_indexed if pt_3D.origin[i][0] == pt_2D[0][0] and pt_3D.origin[i][1] == pt_2D[0][1] ]
-    matched_pts_3D = [ pt_3D.coords for (num, pt_2D) in enumerate(norm_pts1) for pt_3D in pt_cloud_indexed if pt_3D.origin[i][0] == pt_2D[0][0] and pt_3D.origin[i][1] == pt_2D[0][1] ]
+    matched_pts_2D = [ norm_pts2[num] for (num, pt_2D) in enumerate(norm_pts1) for pt_3D in pt_cloud_indexed if np.array_equal(pt_3D.origin[i], pt_2D) ]
+    matched_pts_3D = [ pt_3D.coords for (num, pt_2D) in enumerate(norm_pts1) for pt_3D in pt_cloud_indexed if np.array_equal(pt_3D.origin[i], pt_2D) ]
 
     matched_pts_2D = np.array(matched_pts_2D, dtype='float32')
     matched_pts_3D = np.array(matched_pts_3D, dtype='float32')

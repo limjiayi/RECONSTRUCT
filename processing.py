@@ -205,7 +205,7 @@ def filter_outliers(pts_3D, norm_pts1, norm_pts2):
 
     return pts_3D, norm_pts1, norm_pts2
 
-def get_colours(img1, K_matrices, norm_pts1, norm_pts2, homog_3D):
+def get_colours(img1, K_matrices, norm_pts1, norm_pts2):
     '''Extract RGB data from the original images and store them in new arrays.'''
     K1 = K_matrices[-2]
     K2 = K_matrices[-1]
@@ -319,17 +319,18 @@ def write_points_ba(pt_cloud_indexed, num_views, K_matrices, poses):
         M = len(pt_cloud_indexed)   # number of 3D points
         N = num_views               # number of views: len(images)
         K = reduce(lambda x, y: x+y, [ len(pt.origin) for pt in pt_cloud_indexed ]) # number of 2D points
-        f.write(' '.join([ str(i) for i in [M, N, K] ]))
+        f.write(' '.join([ str(i) for i in [M, N, K] ]) + '\n')
 
         # K matrices
         K_matrices = [ matrix.ravel().tolist() for matrix in K_matrices ]
         K_matrices = [ [ matrix[0], matrix[1], matrix[2], matrix[4], matrix[5], 0, 0, 0, 0 ] for matrix in K_matrices ]
-        for matrix in K_matrices:
-            f.write(str(matrix).strip('[]') + '\n')
+        for idx, matrix in enumerate(K_matrices):
+            f.write(' '.join([str(idx)] + [ str(i) for i in matrix ]) + '\n')
 
         # 3D point positions
         for idx, pt in enumerate(pt_cloud_indexed):
-            f.write(' '.join([ str(idx), str(pt.coords) ]) + '\n')
+            coords = pt.coords.tolist()
+            f.write(' '.join([ str(idx), str(coords[0]), str(coords[1]), str(coords[2]) ]) + '\n')
 
         # camera poses
         poses = [ pose.ravel().tolist() for pose in poses ]
@@ -337,4 +338,10 @@ def write_points_ba(pt_cloud_indexed, num_views, K_matrices, poses):
             f.write(' '.join([ str(i) for i in pose ]) + '\n')
 
         # 2D image measurements
-        
+        for idx, pt in enumerate(pt_cloud_indexed):
+            for key in pt.origin:
+                f.write(' '.join([ str(key), str(idx), str(pt.origin[key][0][0]), str(pt.origin[key][0][1]), '1' ]) + '\n')
+
+def load_refined(filename):
+    with open(filename, 'w') as f:
+        pass

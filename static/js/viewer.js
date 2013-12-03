@@ -67,7 +67,7 @@ function loadCloud(data) {
 	// load the points
 	for (var i=0; i<cloud.length; i++) {
 		var pt = cloud[i].split(" ");
-		var x = -parseFloat(pt[0]);
+		var x = parseFloat(pt[0]);
 		var y = -parseFloat(pt[1]);
 		var z = parseFloat(pt[2]);
 
