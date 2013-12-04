@@ -220,45 +220,52 @@ function pastClouds() {
                 async: true,
                 dataType: 'json',
                 success: function(data) {
-                    var clouds = document.getElementsByClassName('cloud');
-                    if (clouds.length > 0) {
-                        $('.cloud').remove();
+                    var cloud_names = document.getElementsByClassName('cloud_name');
+                    if (cloud_names.length === 0) {
+                        $('.placeholder_text').show();
+                    } else {
+                        $('.placeholder_text').hide();
+                        $('.cloud_name').remove();
+                        $('.cloud_preview').remove();
+                    }
+                    var cloudNames = document.getElementById('cloud_names');
+                    if (cloudNames === null) {
+                        $cloudNames = $('<div id="cloud_names"></div>');
+                        $cloudPreviews = $('<div id="cloud_previews"></div>');
+                        $('#clouds').append($cloudNames);
+                        $('#clouds').append($cloudPreviews);
                     }
                     //display the previous point clouds if there are any
                     for (var key in data) {
                         if (data[key][0] && data[key][0]['cloud_id']) {
-                            var $div = $('<div class="cloud" data-cloud-id="' + key.split(',')[0] + '"><div class="desc">Name: ' + key.split(',')[1] + '<br>Created on: ' + data[key][0]['uploaded_on'].split(' ')[0] + '</div>');
-                            $('#clouds').append($div);
+                            var $name = $('<div class="cloud_name" data-cloud-id="' + key.split(',')[0] + '">' + key.split(',')[1] + '</div>');
+                            $('#cloud_names').append($name);
+                            var $date = $('<div class="cloud_preview" data-cloud-id="' + key.split(',')[0] + '"><div class="desc">Created on: ' + data[key][0]['uploaded_on'].split(' ')[0] + '</div>');
+                            $('#cloud_previews').append($date);
+                            $('.cloud_preview').hide();
 
-                            for (var i=0; i < data[key].length; i++) {
-                                var $photo = $('<img class="thumbnail" src="' + data[key][i]['path'] + '/' + data[key][i]['filename'] + '">');
-                                $div.append($photo);
-                            }
-                        }
-                    }
-                    $('.cloud').mouseenter( function() { // bind event listener
-                        $(this).children('img').addClass('hover');
-                        // add load button
-                        var loadButtons = document.getElementsByClassName('loadbtn');
-                        if (loadButtons.length === 0) {
+                            // add load button
+                            var cloud_id = key.split(',')[0];
                             $loadbtn = $('<button class="loadbtn">Load</button>');
-                            $(this).append($loadbtn);
+                            $('.cloud_preview[data-cloud-id="' + cloud_id +'"]').append($loadbtn);
                             $loadbtn.toggleClass('on');
                             $loadbtn.bind('click', function() {
-                                var cloud_id = $(this).parent('.cloud').data('cloud-id');
+                                var cloud_id = $(this).parent('.cloud_preview').data('cloud-id');
                                 chooseCloud(cloud_id);
                                 $('#library').slideUp('slow');
                                 $('#viewer').slideDown('slow');
                                 startViewer();
                             });
-                        } // add delete button
-                        var deleteButtons = document.getElementsByClassName('deletebtn');
-                        if (deleteButtons.length === 0) {
+
+                            // add delete button
                             $deletebtn = $('<button class="deletebtn">Delete</button>');
-                            $(this).append($deletebtn);
+                            $('.cloud_preview[data-cloud-id="' + cloud_id +'"]').append($deletebtn);
+                            $('.cloud_preview[data-cloud-id="' + cloud_id +'"]').append('<div class="empty"></div>');
                             $deletebtn.toggleClass('on');
                             $deletebtn.bind('click', function() {
-                                var cloud_id = $(this).parent('.cloud').data('cloud-id');
+                                var cloud_id = $(this).parent('.cloud_preview').data('cloud-id');
+                                console.log('user: ' + user_id);
+                                console.log('cloud: ' + cloud_id);
                                 $.ajax( {
                                     url: '/remove/' + user_id + '/' + cloud_id,
                                     type: 'POST',
@@ -270,18 +277,17 @@ function pastClouds() {
                                     }
                                 });
                             });
+
+                            for (var i=0; i < data[key].length; i++) {
+                                var $photo = $('<img class="thumbnail" src="' + data[key][i]['path'] + '/' + data[key][i]['filename'] + '">');
+                                $date.append($photo);
+                            }
                         }
-                    });
-                    $('.cloud').mouseleave( function() {
-                        $(this).children('img').removeClass('hover');
-                        var loadbutton = document.getElementsByClassName('loadbtn');
-                        if (loadbutton.length === 1) {
-                            $('.loadbtn').remove();
-                        }
-                        var deletebutton = document.getElementsByClassName('deletebtn');
-                        if (deletebutton.length === 1) {
-                            $('.deletebtn').remove();
-                        }
+                    }
+                    $('.cloud_name').hover( function () {
+                        var cloud_id = $(this).attr('data-cloud-id');
+                        $('.cloud_preview').hide();
+                        $('.cloud_preview[data-cloud-id="' + cloud_id + '"]').show();
                     });
                 }
             });

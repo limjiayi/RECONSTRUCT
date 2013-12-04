@@ -26,6 +26,39 @@ li > a:hover { /* for links in navbar */
     margin-bottom: 15px;
 }
 
+.placeholder_text {
+    padding-top: 10px;
+    font-size: 15px;
+}
+
+#cloud_names {
+    float: left;
+    margin-right: 20px;
+}
+
+.cloud_name {
+    width: 100px;
+    padding: 10 0 10 0;
+    margin-bottom: 5px;
+    background-color: #7D9FBA;
+    border-radius: 5 5 5 5;
+    text-align: center;
+    font-size: 15px;
+}
+
+.cloud_name:hover {
+    background-color: #406482;
+    color: white;
+}
+
+.cloud_preview {
+    overflow: hidden;
+    padding: 10 10 10 20;
+    border-radius: 5 5 5 5;
+    width: 80%;
+    background-color: #C7CBD1;
+}
+
 .cloud { /* for past point cloud */
     overflow: hidden;
     padding: 10 10 10 10;
@@ -37,22 +70,14 @@ li > a:hover { /* for links in navbar */
 
 .desc { /* for past cloud info */
     clear: both;
-    padding: 0 0 5 3;
-    font-size: 14px;
+    padding-bottom: 10px;
+    font-size: 15px;
 }
 
 .thumbnail { /* for thumbnails of photos used to reconstruct past point cloud */
     float: left;
-    width: 150px;
-    margin-bottom: 5px;
-    opacity: 0.5;
-}
-
-.thumbnail.hover { /* for thumbnails of photos used to reconstruct past point clouds, when parent div has been clicked on */
-    float: left;
-    width: 150px;
-    margin-bottom: 5px;
-    opacity: 1;
+    width: 200px;
+    margin-bottom: 20px;
 }
 
 #upload {
@@ -150,7 +175,7 @@ input { /* for input fields on register and login pages */
     float: left;
     width: 100px;
     height: 30px;
-    margin-left: 10px;
+    margin-right: 10px;
     background: #707980;
     color: white;
     font-family: Helvetica, Arial, Sans-Serif;
@@ -161,7 +186,7 @@ input { /* for input fields on register and login pages */
     float: left;
     width: 100px;
     height: 30px;
-    margin-left: 10px;
+    /*margin-left: 10px;*/
     background: #294C7D;
     color: white;
     font-family: Helvetica, Arial, Sans-Serif;
