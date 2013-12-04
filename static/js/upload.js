@@ -248,7 +248,6 @@ function pastClouds() {
                             var cloud_id = key.split(',')[0];
                             $loadbtn = $('<button class="loadbtn">Load</button>');
                             $('.cloud_preview[data-cloud-id="' + cloud_id +'"]').append($loadbtn);
-                            $loadbtn.toggleClass('on');
                             $loadbtn.bind('click', function() {
                                 var cloud_id = $(this).parent('.cloud_preview').data('cloud-id');
                                 chooseCloud(cloud_id);
@@ -261,7 +260,6 @@ function pastClouds() {
                             $deletebtn = $('<button class="deletebtn">Delete</button>');
                             $('.cloud_preview[data-cloud-id="' + cloud_id +'"]').append($deletebtn);
                             $('.cloud_preview[data-cloud-id="' + cloud_id +'"]').append('<div class="empty"></div>');
-                            $deletebtn.toggleClass('on');
                             $deletebtn.bind('click', function() {
                                 var cloud_id = $(this).parent('.cloud_preview').data('cloud-id');
                                 console.log('user: ' + user_id);

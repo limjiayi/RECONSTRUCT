@@ -1,5 +1,5 @@
 // set the scene size
-var WIDTH = 940, HEIGHT = 500;
+var WIDTH = 940, HEIGHT = 750;
 
 // global variables
 var viewer, camera, scene, renderer, ambient, controls, particles;
@@ -36,7 +36,7 @@ function initScene() {
 	scene.add( ambient );
 
 	camera = new THREE.PerspectiveCamera(VIEW_ANGLE, ASPECT, NEAR, FAR);
-	camera.position.z = 2;
+	camera.position.z = 1;
 	scene.add( camera );
 
 	// set the camera's behaviour and sensitivity

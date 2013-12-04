@@ -1,4 +1,4 @@
-li > a:hover { /* for links in navbar */
+.navbar .nav>li>a:hover { /* for links in navbar */
     color: #E3A71B;
 }
 
@@ -11,8 +11,37 @@ li > a:hover { /* for links in navbar */
     margin-top: -10px; /* half the height of the preloader gif */
 }
 
+#viewer {
+    position: relative;
+}
+
+#my_clouds { /* button to go back to library from viewer */
+    position: absolute;
+    right: 180px;
+    top: 5px;
+    font-size: 15px;
+}
+
+canvas { /* for ThreeJS viewer */
+    position: relative;
+    z-index: -10;
+    background-color: black;
+    margin-bottom: 40px;
+}
+
+.download {
+    margin-bottom: 20px;
+}
+
+.downloadbtn {
+    float: left;
+    width: 15%;
+    margin: 0 10 50 0;
+}
+
 .direction { /* for buttons to upload photos and go back to the library */
     position: absolute;
+    height: 30px;
     right: 10px;
     top: 5px;
     font-size: 15px;
@@ -77,7 +106,7 @@ li > a:hover { /* for links in navbar */
 .thumbnail { /* for thumbnails of photos used to reconstruct past point cloud */
     float: left;
     width: 200px;
-    margin-bottom: 20px;
+    margin: 5 5 20 0;
 }
 
 #upload {
@@ -171,33 +200,11 @@ input { /* for input fields on register and login pages */
     font-size: 15px;
 }
 
-.loadbtn { /* for button to load previous point cloud */
+.loadbtn, .deletebtn, .startbtn, .clearbtn { /* for button to start reconstruction */
     float: left;
     width: 100px;
     height: 30px;
-    margin-right: 10px;
-    background: #707980;
-    color: white;
-    font-family: Helvetica, Arial, Sans-Serif;
-    font-size: 15px;
-}
-
-.on { /* for start, load and delete buttons when clickable */
-    float: left;
-    width: 100px;
-    height: 30px;
-    /*margin-left: 10px;*/
-    background: #294C7D;
-    color: white;
-    font-family: Helvetica, Arial, Sans-Serif;
-    font-size: 15px;
-}
-
-.startbtn { /* for button to start reconstruction */
-    float: left;
-    width: 100px;
-    height: 30px;
-    margin-left: 10px;
+    margin-left: 5px;
     background: #294C7D;
     color: white;
     font-family: Helvetica, Arial, Sans-Serif;
@@ -207,32 +214,4 @@ input { /* for input fields on register and login pages */
 .empty { /*  */
     clear: both;
     height: 10px;
-}
-
-#viewer {
-    position: relative;
-}
-
-#my_clouds { /* button to go back to library from viewer */
-    position: absolute;
-    right: 180px;
-    top: 5px;
-    font-size: 15px;
-}
-
-canvas { /* for ThreeJS viewer */
-    position: relative;
-    z-index: -10;
-    background-color: black;
-    margin-bottom: 40px;
-}
-
-.download {
-    margin-bottom: 20px;
-}
-
-.downloadbtn {
-    float: left;
-    width: 15%;
-    margin: 0 10 50 0;
 }
