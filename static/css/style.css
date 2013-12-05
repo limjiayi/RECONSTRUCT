@@ -36,7 +36,12 @@ canvas { /* for ThreeJS viewer */
 .downloadbtn {
     float: left;
     width: 15%;
+    height: 30px;
     margin: 0 10 50 0;
+    background: #294C7D;
+    color: white;
+    font-family: Helvetica, Arial, Sans-Serif;
+    font-size: 15px;
 }
 
 .direction { /* for buttons to upload photos and go back to the library */
@@ -178,7 +183,6 @@ input[type=radio] {
 input[type=radio] + label {
     display: inline-block;
     padding: 5px 5px;
-    background-color: #E7E7E7;
     font-size: 15px;
 }
 

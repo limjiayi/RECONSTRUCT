@@ -244,7 +244,7 @@ def load_points(filename):
         pt_cloud = data[:,:3]
         colours = data[:,3:]
 
-    display_vtk.vtk_show_points(pt_cloud, list(colours))
+    # display_vtk.vtk_show_points(pt_cloud, list(colours))
 
 def rgb_to_int(colours):
     return np.array([ c[0]*256*256 + c[1]*256 + c[2] for c in colours ])
