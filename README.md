@@ -17,12 +17,12 @@ Farneback's dense optical flow algorithm, normally used for motion tracking in v
 ### Image processing
 ###### (processing.py)
 
-Pre-processes images prior to the reconstruction by graying out the images and downsampling them to an appropriate size if they are too large. The bulk of the reconstruction is done here, save for algorithm-specific functions above. The reconstruction algorithm builds the camera calibration matrices by extracting information from the EXIF metadata embedded in the images, computes the essential and projection matrices, and triangulates 3D points from the 2D point correspondences using the Direct Linear Transform. For the third and subsequent images in the sequence, it also computes the pose of each new camera in the scene to ensure that the new 3D points to be added are in the same coordinate system as that of the first camera (which is taken to be the frame of reference).
+Pre-processes images prior to the reconstruction by graying out the images and downsampling them to an appropriate size if they are too large. The bulk of the reconstruction is done here, save for algorithm-specific functions above. The reconstruction algorithm builds the camera calibration matrices by extracting information from the EXIF metadata embedded in the images, computes the essential and projection matrices, and triangulates 3D points from the 2D point correspondences using Direct Linear Transform. For the third and subsequent images in the sequence, it also computes the pose of each new camera in the scene so that the new 3D points to be added are in the same coordinate system as that of the first camera (which is taken to be the frame of reference).
 
 ### Reconstruction tests
 ###### (draw.py)
 
-To ensure that the reconstructions will be true, a number of intermediate functions were written to visualize the results of the intermediate steps, such as the point correspondences, epilines and 2D projection of the 3D points (this was written before the 3D viewer was completed).
+To ensure that the reconstructions is valid, a number of functions were written to visualize the results of the intermediate steps, such as the point correspondences, epilines and 2D projection of the 3D points (this was written before the 3D viewer was completed).
 
 ### Databases
 ###### (model.py & cam_db.py)
@@ -32,7 +32,7 @@ The main SQLite database stores all user-related information, including user-upl
 ### Web Framework
 ###### (views.py)
 
-Flask is the web framework. Users upload 2 or more photos, and AJAX is used to send the data URLs of the selected photos to the server as well as call the route that returns the text file of the generated point cloud. Logins and registration are also handled here along with all other communications with the main database to add or retrieve information.
+Flask is used as the web framework. Users upload 2 or more photos, and the data URLs of the selected photos are sent via AJAX to the server, where the route that returns the text file of the generated point cloud is called. Logins and registration are also handled here along with all other communications with the main database to add or retrieve information.
 
 ### User interface
 ###### (interface.js - in static/js)
@@ -42,7 +42,7 @@ jQuery is used to ensure a smooth user experience in the single-page webapp, fro
 ### 3D viewer
 ###### (viewer.js - in static/js)
 
-The 3D viewer is built using THREEjs. The text file generated from the reconstruction is loaded and parsed line-by-line to extract the 3D coordinates of each vertex, which is then added to the viewer.
+The 3D viewer is built using THREEjs. It loads the text file generated from the reconstruction, and parses it line-by-line to extract the 3D coordinates of each vertex, which is then added to the point cloud.
 
 ### Screenshots
 
