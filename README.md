@@ -11,7 +11,7 @@ Overview of the structure from motion pipeline that generates a point cloud from
 ###### (rich_features.py & optical_flow.py)
 
 2 algorithms are available for finding matching points between images, SURF and dense optical flow. 
-The SURF algorithm detects specific features (blobs) in each image and attaches a descriptor to each feature based on the sum of the Haar wavelet responses around each point of interest. The descriptors are then compared to obtain the nearest neighbour matches. Because only specific features are detected and matched, the resulting point cloud is sparse
+The SURF algorithm detects specific features (blobs) in each image and attaches a descriptor to each feature based on the sum of the Haar wavelet responses around each point of interest. The descriptors are then compared to obtain the nearest neighbour matches. Because only specific features are detected and matched, the resulting point cloud is sparse.
 Farneback's dense optical flow algorithm, normally used for motion tracking in video, is available as an option for generating a denser point cloud (albeit under stricter constraints). The algorithm uses local polynomial expansion to estimate displacement fields for every pixel in the image, thereby relating corresponding pixels in a pair of images.
 
 ### Image processing
